@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 import logging
 from typing import Any, Dict, List
 
@@ -109,6 +109,7 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         self.previous_substatuses: Dict[str, str | None] = {}
         self.previous_delivery_timeframes: Dict[str, Any] = {}
         self.delivered_since: Dict[str, datetime] = {}
+        self.expired_tracking_codes: set[str] = set()
 
     async def _async_update_data(self) -> Dict[str, Any]:
         """Fetch data from API."""
@@ -130,6 +131,8 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 changed_tracking_set = False
 
                 for tracking_code in account_set:
+                    if tracking_code in self.expired_tracking_codes:
+                        continue
                     if tracking_code not in self.tracking_codes:
                         _LOGGER.info(
                             "New parcel detected from account: %s", tracking_code
@@ -147,7 +150,19 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
                     prev_payload = previous_data.get(tracking_code, {})
                     if prev_payload.get("is_delivered"):
-                        self.delivered_since.setdefault(tracking_code, datetime.now())
+                        delivered_at_raw = prev_payload.get("delivered_at")
+                        delivered_dt = None
+                        if isinstance(delivered_at_raw, str):
+                            try:
+                                delivered_dt = datetime.fromisoformat(
+                                    delivered_at_raw.replace("Z", "+00:00")
+                                )
+                            except Exception:
+                                delivered_dt = None
+                        self.delivered_since.setdefault(
+                            tracking_code,
+                            self._normalize_datetime(delivered_dt or datetime.now()),
+                        )
                         continue
 
                     removed_from_account.append(tracking_code)
@@ -180,6 +195,12 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             except Exception as err:
                 _LOGGER.warning("Could not sync parcels from account: %s", err)
 
+        # Ensure delivered parcels from retention remain visible even if removed
+        # from account listing, until retention window expires.
+        for tracking_code in list(self.delivered_since):
+            if tracking_code not in self.tracking_codes:
+                self.tracking_codes.append(tracking_code)
+
         for tracking_code in list(self.tracking_codes):
             try:
                 tracking_data = await self.api.get_tracking_info(
@@ -191,7 +212,19 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 self._check_for_delivery_window_change(tracking_code, tracking_data)
 
                 if tracking_data.get("is_delivered"):
-                    self.delivered_since.setdefault(tracking_code, datetime.now())
+                    delivered_at_raw = tracking_data.get("delivered_at")
+                    delivered_dt = None
+                    if isinstance(delivered_at_raw, str):
+                        try:
+                            delivered_dt = datetime.fromisoformat(
+                                delivered_at_raw.replace("Z", "+00:00")
+                            )
+                        except Exception:
+                            delivered_dt = None
+                    self.delivered_since.setdefault(
+                        tracking_code,
+                        self._normalize_datetime(delivered_dt or datetime.now()),
+                    )
                 else:
                     self.delivered_since.pop(tracking_code, None)
 
@@ -207,11 +240,15 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                         "delivery_timeframe": tracking_data.get("delivery_timeframe"),
                         "sender": _to_sender_name(tracking_data.get("sender")),
                         "recipient": tracking_data.get("recipient"),
+                        "delivered_at": tracking_data.get("delivered_at"),
+                        "delivery_location": tracking_data.get("delivery_location"),
                         "language": self.summary_language,
                         "data": tracking_data,
                     },
                 )
-                if tracking_code in newly_discovered_codes:
+                if tracking_code in newly_discovered_codes and not tracking_data.get(
+                    "is_delivered"
+                ):
                     self.hass.bus.async_fire(
                         EVENT_DHL_PARCEL_DISCOVERED,
                         {
@@ -223,6 +260,8 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                                 tracking_data.get("status_category"),
                                 self.summary_language,
                             ),
+                            "delivered_at": tracking_data.get("delivered_at"),
+                            "delivery_location": tracking_data.get("delivery_location"),
                             "language": self.summary_language,
                             "data": tracking_data,
                         },
@@ -243,11 +282,11 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         if self.delivered_keep_days < 0:
             return
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         to_remove: list[str] = []
 
         for tracking_code, delivered_at in self.delivered_since.items():
-            age_days = (now - delivered_at).days
+            age_days = (now - self._normalize_datetime(delivered_at)).days
             if age_days >= self.delivered_keep_days:
                 to_remove.append(tracking_code)
 
@@ -263,6 +302,7 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             self.previous_substatuses.pop(tracking_code, None)
             self.previous_delivery_timeframes.pop(tracking_code, None)
             data.pop(tracking_code, None)
+            self.expired_tracking_codes.add(tracking_code)
             self.hass.bus.async_fire(
                 EVENT_DHL_PARCEL_REMOVED,
                 {
@@ -300,6 +340,8 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                         current_status, self.summary_language
                     ),
                     "sender": _to_sender_name(tracking_data.get("sender")),
+                    "delivered_at": tracking_data.get("delivered_at"),
+                    "delivery_location": tracking_data.get("delivery_location"),
                     "language": self.summary_language,
                     "data": tracking_data,
                 },
@@ -330,6 +372,8 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                         tracking_data.get("status_category"), self.summary_language
                     ),
                     "sender": _to_sender_name(tracking_data.get("sender")),
+                    "delivered_at": tracking_data.get("delivered_at"),
+                    "delivery_location": tracking_data.get("delivery_location"),
                     "language": self.summary_language,
                     "data": tracking_data,
                 },
@@ -356,6 +400,8 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                         tracking_data.get("status_category"), self.summary_language
                     ),
                     "sender": _to_sender_name(tracking_data.get("sender")),
+                    "delivered_at": tracking_data.get("delivered_at"),
+                    "delivery_location": tracking_data.get("delivery_location"),
                     "language": self.summary_language,
                     "data": tracking_data,
                 },
@@ -397,3 +443,9 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         if start <= end:
             return start <= now <= end
         return now >= start or now <= end
+
+    def _normalize_datetime(self, value: datetime) -> datetime:
+        """Normalize datetime to timezone-aware UTC."""
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)

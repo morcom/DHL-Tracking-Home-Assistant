@@ -10,6 +10,8 @@ entities:
     name: Liczba paczek
   - entity: sensor.dhl_tracking_details
     name: Tracking i nadawcy
+  - entity: sensor.dhl_delivered_details
+    name: Szczegóły doręczonych
   - entity: sensor.dhl_parcel_voice_summary
     name: Podsumowanie głosowe
 
@@ -25,7 +27,7 @@ entities:
 type: markdown
 title: DHL - Szczegóły paczek
 content: |
-  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details'] %}
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details', 'sensor.dhl_delivered_details'] %}
   {% set ns = namespace(found=0) %}
   {% for s in states.sensor %}
     {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
@@ -54,4 +56,49 @@ content: |
   {% endfor %}
   {% if ns.found == 0 %}
   Brak aktywnych paczek DHL.
+  {% endif %}
+
+---
+
+# KARTA 3: Ostatnio doręczone paczki DHL (ostatnie X dni retencji)
+# Co pokaże:
+# - tylko paczki ze statusem doręczona,
+# - godzinę doręczenia,
+# - lokalizację doręczenia (jeśli dostępna),
+# - sortowanie od najnowszej doręczonej.
+type: markdown
+title: DHL - Ostatnio doręczone
+content: |
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details', 'sensor.dhl_delivered_details'] %}
+  {% set delivered = [] %}
+  {% for s in states.sensor %}
+    {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
+      {% set delivered_at = state_attr(s.entity_id, 'delivered_at') %}
+      {% if delivered_at %}
+        {% set delivered = delivered + [
+          {
+            'entity_id': s.entity_id,
+            'tracking': state_attr(s.entity_id, 'tracking_code') or s.name,
+            'sender': state_attr(s.entity_id, 'sender') or 'Nieznany nadawca',
+            'status': state_attr(s.entity_id, 'status_pl') or states(s.entity_id),
+            'delivered_at': delivered_at,
+            'delivery_location': state_attr(s.entity_id, 'delivery_location')
+          }
+        ] %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {% set sorted = delivered | sort(attribute='delivered_at', reverse=true) %}
+  {% if sorted | length == 0 %}
+  Brak doręczonych paczek w aktualnym oknie retencji.
+  {% else %}
+  {% for p in sorted %}
+  **{{ loop.index }}. Paczka: {{ p.tracking }}**
+  - Nadawca: {{ p.sender }}
+  - Status: {{ p.status }}
+  - Doręczona o: {{ as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Lokalizacja: {{ p.delivery_location or 'brak danych' }}
+
+  {% endfor %}
   {% endif %}

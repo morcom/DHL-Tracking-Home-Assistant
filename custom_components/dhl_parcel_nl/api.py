@@ -124,6 +124,7 @@ class DHLParcelNLAPI:
             delivery_date = delivery_timeframe.split("/")[0]
 
         delivered_at = raw.get("deliveredAt")
+        delivery_location = None
         if not delivered_at and raw_events:
             for event in reversed(raw_events):
                 if event.get("category") == "DELIVERED":
@@ -132,7 +133,20 @@ class DHLParcelNLAPI:
                         or event.get("localTimestamp")
                         or event.get("timestamp")
                     )
+                    if event.get("geoLocation"):
+                        geo = event.get("geoLocation", {})
+                        lat = geo.get("latitude") or geo.get("lat")
+                        lon = geo.get("longitude") or geo.get("lon")
+                        if lat is not None and lon is not None:
+                            delivery_location = f"{lat},{lon}"
                     break
+
+        if not delivery_location and isinstance(raw.get("geoLocation"), dict):
+            geo = raw.get("geoLocation", {})
+            lat = geo.get("latitude") or geo.get("lat")
+            lon = geo.get("longitude") or geo.get("lon")
+            if lat is not None and lon is not None:
+                delivery_location = f"{lat},{lon}"
 
         sender = data.get("sender") or data.get("shipper")
         sender_name = None
@@ -166,6 +180,7 @@ class DHLParcelNLAPI:
             "estimated_delivery": data.get("estimatedDeliveryTime")
             or data.get("estimatedTimeOfDelivery"),
             "delivered_at": delivered_at,
+            "delivery_location": delivery_location,
             "last_event_status": events[-1].get("status") if events else None,
             "raw": data,
         }
@@ -321,6 +336,7 @@ class DHLParcelNLAPI:
             data = await response.json()
 
             tracking_codes = []
+            delivered_codes = []
             parcels: list[dict[str, Any]] = []
             if (
                 isinstance(data, dict)
@@ -337,12 +353,20 @@ class DHLParcelNLAPI:
                     or parcel.get("trackingCode")
                     or parcel.get("barcode")
                 )
-                category = parcel.get("category") or parcel.get("status")
-                if tracker_code and category != "DELIVERED":
-                    tracking_codes.append(str(tracker_code))
+                status = (parcel.get("status") or parcel.get("category") or "").upper()
+                if tracker_code:
+                    code = str(tracker_code)
+                    if status == "DELIVERED":
+                        delivered_codes.append(code)
+                    else:
+                        tracking_codes.append(code)
+
+            tracking_codes.extend(delivered_codes)
 
             _LOGGER.debug(
-                "Found %d active parcels in consumer account", len(tracking_codes)
+                "Found %d parcels in consumer account (%d delivered)",
+                len(tracking_codes),
+                len(delivered_codes),
             )
             return list(dict.fromkeys(tracking_codes))
 
@@ -355,12 +379,13 @@ class DHLParcelNLAPI:
                     "Accept": "application/json",
                     "Authorization": f"Bearer {self.access_token}",
                 },
-                params={"status": "active", "limit": 50},
+                params={"limit": 100},
             )
             response.raise_for_status()
             data = await response.json()
 
             tracking_codes: list[str] = []
+            delivered_codes: list[str] = []
             shipments: list[dict[str, Any]] = []
 
             if isinstance(data, list):
@@ -377,11 +402,22 @@ class DHLParcelNLAPI:
                     or shipment.get("trackingCode")
                     or shipment.get("barcode")
                 )
+                status = (
+                    shipment.get("status") or shipment.get("category") or ""
+                ).upper()
                 if tracker_code:
-                    tracking_codes.append(str(tracker_code))
+                    code = str(tracker_code)
+                    if status == "DELIVERED":
+                        delivered_codes.append(code)
+                    else:
+                        tracking_codes.append(code)
+
+            tracking_codes.extend(delivered_codes)
 
             _LOGGER.debug(
-                "Found %d active parcels in business account", len(tracking_codes)
+                "Found %d parcels in business account (%d delivered)",
+                len(tracking_codes),
+                len(delivered_codes),
             )
             return list(dict.fromkeys(tracking_codes))
 

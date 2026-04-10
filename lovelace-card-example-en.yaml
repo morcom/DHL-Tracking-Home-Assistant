@@ -10,6 +10,8 @@ entities:
     name: Parcel count
   - entity: sensor.dhl_tracking_details
     name: Tracking and senders
+  - entity: sensor.dhl_delivered_details
+    name: Delivered details
   - entity: sensor.dhl_parcel_voice_summary
     name: Voice summary
 
@@ -25,7 +27,7 @@ entities:
 type: markdown
 title: DHL - Parcel details
 content: |
-  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details'] %}
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details', 'sensor.dhl_delivered_details'] %}
   {% set ns = namespace(found=0) %}
   {% for s in states.sensor %}
     {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
@@ -54,4 +56,49 @@ content: |
   {% endfor %}
   {% if ns.found == 0 %}
   No active DHL parcels.
+  {% endif %}
+
+---
+
+# CARD 3: Recently delivered DHL parcels (last X retention days)
+# Shows:
+# - delivered parcels only,
+# - delivered time,
+# - delivery location when available,
+# - sorted newest first.
+type: markdown
+title: DHL - Recently delivered
+content: |
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details', 'sensor.dhl_delivered_details'] %}
+  {% set delivered = [] %}
+  {% for s in states.sensor %}
+    {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
+      {% set delivered_at = state_attr(s.entity_id, 'delivered_at') %}
+      {% if delivered_at %}
+        {% set delivered = delivered + [
+          {
+            'entity_id': s.entity_id,
+            'tracking': state_attr(s.entity_id, 'tracking_code') or s.name,
+            'sender': state_attr(s.entity_id, 'sender') or 'Unknown sender',
+            'status': states(s.entity_id),
+            'delivered_at': delivered_at,
+            'delivery_location': state_attr(s.entity_id, 'delivery_location')
+          }
+        ] %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {% set sorted = delivered | sort(attribute='delivered_at', reverse=true) %}
+  {% if sorted | length == 0 %}
+  No delivered parcels in the current retention window.
+  {% else %}
+  {% for p in sorted %}
+  **{{ loop.index }}. Parcel: {{ p.tracking }}**
+  - Sender: {{ p.sender }}
+  - Status: {{ p.status }}
+  - Delivered at: {{ as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Delivery location: {{ p.delivery_location or 'no data' }}
+
+  {% endfor %}
   {% endif %}

@@ -13,6 +13,15 @@ DHL Packages for me? It would provide details. Automatically.
 You have as well automation examples - as we need to get variables. So - those
 are to guide you.
 
+## How it works
+
+- on consumer account, it is login to `my.dhlecommerce.nl`, list all packages 
+(using your username) and password
+- then - it is using DHL API *track-trace* to get package details
+
+- on business account, it is using DHL API Gateway to get package 
+details - using API key and user ID
+
 ## Account modes
 
 ### 1) Consumer account (`my.dhlecommerce.nl` / My DHL app)
@@ -129,10 +138,12 @@ Per parcel sensor (`sensor.dhl_parcel_<tracking>`):
 - delivery_day_label (`today`, `tomorrow`, `in two days`, or date)
 - delivered_at timestamp
 - event history and latest event
+- delivery_location (when available from DHL events)
 
 Summary sensors:
 - `sensor.dhl_parcel_count`
 - `sensor.dhl_tracking_details`
+- `sensor.dhl_delivered_details`
 - `sensor.dhl_parcel_voice_summary`
 
 Voice summary sensor provides structured `parcels` list for assistants:
@@ -160,6 +171,12 @@ The summary text includes per-package details:
 - `dhl_tracking_numbers_extended` (comma-separated `tracking|sender|status|day|window`)
 - `tracking_details` (list of dicts per tracking code)
 - `tracking_by_number` (object keyed by tracking code)
+
+`sensor.dhl_delivered_details` includes a delivered-only matrix:
+- `dhl_delivered_numbers` (comma-separated `tracking|sender|delivered_time`)
+- `delivered_tracking_numbers`
+- `delivered_details` (list sorted newest first)
+- `delivered_by_number` (object keyed by tracking code)
 
 Status mapping covers DHL Track & Trace categories such as:
 - `DATA_RECEIVED`
@@ -193,6 +210,10 @@ Event payload localization:
 - each major event includes `language` and `status_localized`
 - status change events include `old_status_localized` and `new_status_localized`
 - this uses integration option `summary_language` (`en`, `pl`, `nl`)
+
+Delivered-event fields:
+- `delivered_at`
+- `delivery_location`
 
 Entity cleanup behavior:
 - parcels removed from DHL account are automatically removed from active tracking
