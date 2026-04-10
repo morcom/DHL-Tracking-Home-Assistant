@@ -34,7 +34,12 @@ Do not fill all fields. Choose one account type and provide only that credential
 
 ## Business API requirements (DHL)
 
-For business mode, enable/create credentials in My DHL Portal:
+For business mode, use **both** DHL systems correctly:
+
+- `developer.dhl.com` -> API catalog, product onboarding, access status
+- `my.dhlecommerce.nl` (My DHL Portal) -> generate the actual `userId` + `key`
+
+For DHL Parcel NL API auth used by this integration, credentials are created in My DHL Portal:
 
 1. Log in to `https://my.dhlecommerce.nl` with your business account.
 2. Go to `Settings -> API Keys`.
@@ -42,6 +47,9 @@ For business mode, enable/create credentials in My DHL Portal:
    - `userId`
    - `key`
 4. Use those values in integration config (`user_id`, `api_key`).
+
+If you do not see the API Keys page, your account likely misses API permissions/role.
+Ask DHL support/account manager to enable API Gateway access for your business account.
 
 Relevant DHL docs:
 - Developer portal (entry point): `https://developer.dhl.com/`
@@ -124,7 +132,7 @@ Summary sensors:
 
 Voice summary sensor provides structured `parcels` list for assistants:
 - sender
-- status (`status`) and translated labels (`status_en`, `status_pl`)
+- status (`status`) and translated labels (`status_en`, `status_pl`, `status_nl`)
 - time window
 - delivered time
 - tracking code and mapped entity_id
@@ -181,6 +189,11 @@ Event payload localization:
 - status change events include `old_status_localized` and `new_status_localized`
 - this uses integration option `summary_language` (`en`, `pl`, `nl`)
 
+Entity cleanup behavior:
+- parcels removed from DHL account are automatically removed from active tracking
+- delivered parcels remain visible until `delivered_keep_days` expires
+- stale/unavailable parcel entities are removed from registry automatically
+
 ## Business automation examples
 
 ### A) Status changed (business account)
@@ -198,7 +211,7 @@ actions:
       attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
       sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or 'unknown sender' }}"
       tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
-      new_status: "{{ attrs.get('new_status', 'unknown') }}"
+      new_status: "{{ attrs.get('new_status_localized') or attrs.get('new_status', 'unknown') }}"
   - action: notify.notify
     data:
       message: "Business parcel {{ tracking }} from {{ sender }} changed to {{ new_status }}."
@@ -230,12 +243,29 @@ actions:
 Expose at least these entities to Assist/LLM:
 - `sensor.dhl_parcel_voice_summary`
 - `sensor.dhl_parcel_count`
+- `sensor.dhl_tracking_details`
 
 Optional:
 - selected dynamic parcel sensors (`sensor.dhl_parcel_<tracking>`)
 
 For Polish voice assistants, `sensor.dhl_parcel_voice_summary` includes `voice_summary_pl`.
 For Dutch voice assistants, `sensor.dhl_parcel_voice_summary` includes `voice_summary_nl`.
+
+## Example files (up-to-date)
+
+Automation examples:
+- `automation-examples-pl.yaml`
+- `automation-examples-en.yaml`
+- `automation-examples-nl.yaml`
+
+Lovelace card examples:
+- `lovelace-card-example-pl.yaml`
+- `lovelace-card-example-en.yaml`
+- `lovelace-card-example-nl.yaml`
+
+Default aliases/legacy files:
+- `automation-examples.yaml` (Polish default)
+- `lovelace-card-example.yaml` (Polish default)
 
 ## Notes
 
