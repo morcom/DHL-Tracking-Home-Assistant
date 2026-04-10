@@ -145,6 +145,7 @@ Summary sensors:
 - `sensor.dhl_tracking_details`
 - `sensor.dhl_delivered_details`
 - `sensor.dhl_parcel_voice_summary`
+- `sensor.dhl_parcel_delivered_summary`
 
 Voice summary sensor provides structured `parcels` list for assistants:
 - sender

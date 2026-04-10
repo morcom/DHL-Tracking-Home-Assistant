@@ -16,6 +16,8 @@ entities:
     name: Szczegóły doręczonych
   - entity: sensor.dhl_parcel_voice_summary
     name: Podsumowanie głosowe
+  - entity: sensor.dhl_parcel_delivered_summary
+    name: Podsumowanie doręczonych
 
 # 2) Karta markdown z listą WSZYSTKICH paczek (dynamiczna)
 ---

@@ -165,6 +165,7 @@ async def async_setup_entry(
                 f"{entry.entry_id}_dhl_tracking_details",
                 f"{entry.entry_id}_dhl_delivered_details",
                 f"{entry.entry_id}_dhl_parcel_voice_summary",
+                f"{entry.entry_id}_dhl_parcel_delivered_summary",
             }
         )
 
@@ -195,6 +196,7 @@ async def async_setup_entry(
     entities.append(DHLParcelTrackingDetailsSensor(coordinator, entry.entry_id))
     entities.append(DHLParcelDeliveredDetailsSensor(coordinator, entry.entry_id))
     entities.append(DHLParcelVoiceSummarySensor(coordinator, entry.entry_id))
+    entities.append(DHLParcelDeliveredSummarySensor(coordinator, entry.entry_id))
     if entities:
         async_add_entities(entities)
 
@@ -413,6 +415,8 @@ class DHLParcelVoiceSummarySensor(
         parcels: list[dict[str, Any]] = []
 
         for code, payload in parcels_data.items():
+            if payload.get("is_delivered") or payload.get("delivered_at"):
+                continue
             sender = (
                 payload.get("sender_name")
                 or payload.get("shipper_name")
@@ -750,4 +754,99 @@ class DHLParcelDeliveredDetailsSensor(
             "delivered_details": rows,
             "delivered_by_number": by_tracking,
             "recommended_voice_use": "Use delivered_details or delivered_by_number for delivered-package answers",
+        }
+
+
+class DHLParcelDeliveredSummarySensor(
+    CoordinatorEntity[DHLParcelNLCoordinator], SensorEntity
+):
+    """Voice-friendly summary for delivered parcels only."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:text-box-check"
+
+    def __init__(self, coordinator: DHLParcelNLCoordinator, entry_id: str) -> None:
+        """Initialize delivered summary sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry_id}_dhl_parcel_delivered_summary"
+        self._attr_name = "DHL Parcel Delivered Summary"
+
+    @property
+    def entity_registry_enabled_default(self) -> bool:
+        """Enable by default for easier Assist setup."""
+        return True
+
+    def _rows(self, lang: str) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for code, payload in (self.coordinator.data or {}).items():
+            if not (payload.get("is_delivered") or payload.get("delivered_at")):
+                continue
+            sender = (
+                payload.get("sender_name")
+                or payload.get("shipper_name")
+                or _to_sender_name(payload.get("sender"))
+                or "unknown sender"
+            )
+            rows.append(
+                {
+                    "tracking_code": code,
+                    "sender": sender,
+                    "status_localized": _status_for_lang(
+                        payload.get("status_category"), lang
+                    ),
+                    "delivered_at": payload.get("delivered_at"),
+                    "delivered_at_hhmm": _format_hhmm(payload.get("delivered_at")),
+                    "delivery_location": payload.get("delivery_location"),
+                }
+            )
+        rows.sort(key=lambda x: str(x.get("delivered_at") or ""), reverse=True)
+        return rows
+
+    def _summary(self, rows: list[dict[str, Any]], lang: str) -> str:
+        if not rows:
+            if lang == "pl":
+                return "Brak doręczonych paczek DHL."
+            if lang == "nl":
+                return "Geen bezorgde DHL-pakketten."
+            return "No delivered DHL parcels."
+
+        if lang == "pl":
+            parts = [f"Masz {len(rows)} doręczone paczki DHL."]
+            for i, r in enumerate(rows, start=1):
+                parts.append(
+                    f"Paczka {i} od {r['sender']} doręczona o {r.get('delivered_at_hhmm') or 'nieznanej godzinie'}, lokalizacja {r.get('delivery_location') or 'brak danych'}."
+                )
+            return " ".join(parts)
+
+        if lang == "nl":
+            parts = [f"Je hebt {len(rows)} bezorgde DHL-pakketten."]
+            for i, r in enumerate(rows, start=1):
+                parts.append(
+                    f"Pakket {i} van {r['sender']} bezorgd om {r.get('delivered_at_hhmm') or 'onbekende tijd'}, locatie {r.get('delivery_location') or 'geen gegevens'}."
+                )
+            return " ".join(parts)
+
+        parts = [f"You have {len(rows)} delivered DHL parcels."]
+        for i, r in enumerate(rows, start=1):
+            parts.append(
+                f"Package {i} from {r['sender']} delivered at {r.get('delivered_at_hhmm') or 'unknown time'}, location {r.get('delivery_location') or 'no data'}."
+            )
+        return " ".join(parts)
+
+    @property
+    def native_value(self) -> str:
+        lang = getattr(self.coordinator, "summary_language", "en")
+        value = self._summary(self._rows(lang), lang)
+        return value[:250] if len(value) > 250 else value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        lang = getattr(self.coordinator, "summary_language", "en")
+        rows = self._rows(lang)
+        summary = self._summary(rows, lang)
+        return {
+            "summary_language": lang,
+            "delivered_count": len(rows),
+            "delivered": rows,
+            "voice_summary": summary,
         }
