@@ -1,5 +1,16 @@
 # DHL Parcel Netherlands (Home Assistant custom integration)
 
+## 1.7.2 Update Notes
+
+Please review examples and automations. This version should fix issues with Delivered,
+as well geolocation for delivered packages, added some Entites which you should
+expose to Voice Assistant - especially when you use AI. 
+
+- DHL Delivered Details
+- DHL Parcel Delivered Summary
+- DHL Parcel Voice Summary
+- DHL Tracking Details
+
 ***Author: Michal Borkowski (ma@borkowski.nl)***
 
 *License: GNU GPL v3 or later (see `LICENSE`)*
