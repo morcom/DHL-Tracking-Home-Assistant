@@ -124,11 +124,14 @@ Per parcel sensor (`sensor.dhl_parcel_<tracking>`):
 - delivery_day_label (`today`, `tomorrow`, `in two days`, or date)
 - delivered_at timestamp
 - event history and latest event
+- delivery_location (when available from DHL events)
 
 Summary sensors:
 - `sensor.dhl_parcel_count`
 - `sensor.dhl_tracking_details`
+- `sensor.dhl_delivered_details`
 - `sensor.dhl_parcel_voice_summary`
+- `sensor.dhl_parcel_delivered_summary`
 
 Voice summary sensor provides structured `parcels` list for assistants:
 - sender
@@ -155,6 +158,13 @@ The summary text includes per-package details:
 - `dhl_tracking_numbers_extended` (comma-separated `tracking|sender|status|day|window`)
 - `tracking_details` (list of dicts per tracking code)
 - `tracking_by_number` (object keyed by tracking code)
+
+`sensor.dhl_delivered_details` includes a delivered-only matrix:
+- `dhl_delivered_numbers` (comma-separated `tracking|sender|delivered_day|delivered_time`)
+- `dhl_delivered_numbers_extended` (comma-separated `tracking|sender|status|delivered_day|delivered_time|delivery_location`)
+- `delivered_tracking_numbers`
+- `delivered_details` (list sorted newest first)
+- `delivered_by_number` (object keyed by tracking code)
 
 Status mapping covers DHL Track & Trace categories such as:
 - `DATA_RECEIVED`
@@ -188,6 +198,15 @@ Event payload localization:
 - each major event includes `language` and `status_localized`
 - status change events include `old_status_localized` and `new_status_localized`
 - this uses integration option `summary_language` (`en`, `pl`, `nl`)
+
+Delivered-event fields:
+- `delivered_at`
+- `delivery_location` (human-readable place/address when available; GPS only as fallback)
+
+Reverse-geocoding for delivery location:
+- preferred free source: OpenStreetMap Nominatim
+- fallback free source: BigDataCloud reverse-geocode-client
+- result is cached in memory and used to replace raw GPS in summaries/events when possible
 
 Entity cleanup behavior:
 - parcels removed from DHL account are automatically removed from active tracking

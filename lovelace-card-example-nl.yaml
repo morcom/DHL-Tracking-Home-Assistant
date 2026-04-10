@@ -10,8 +10,12 @@ entities:
     name: Aantal pakketten
   - entity: sensor.dhl_tracking_details
     name: Tracking en afzenders
+  - entity: sensor.dhl_delivered_details
+    name: Bezorgde details
   - entity: sensor.dhl_parcel_voice_summary
     name: Spraakoverzicht
+  - entity: sensor.dhl_parcel_delivered_summary
+    name: Samenvatting bezorgd
 
 ---
 
@@ -25,7 +29,7 @@ entities:
 type: markdown
 title: DHL - Pakketdetails
 content: |
-  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details'] %}
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details', 'sensor.dhl_delivered_details'] %}
   {% set ns = namespace(found=0) %}
   {% for s in states.sensor %}
     {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
@@ -54,4 +58,49 @@ content: |
   {% endfor %}
   {% if ns.found == 0 %}
   Geen actieve DHL-pakketten.
+  {% endif %}
+
+---
+
+# KAART 3: Recent bezorgde DHL-pakketten (laatste X retentiedagen)
+# Toont:
+# - alleen bezorgde pakketten,
+# - bezorgtijd,
+# - bezorglocatie indien beschikbaar,
+# - sortering van nieuw naar oud.
+type: markdown
+title: DHL - Recent bezorgd
+content: |
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details', 'sensor.dhl_delivered_details'] %}
+  {% set delivered = [] %}
+  {% for s in states.sensor %}
+    {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
+      {% set delivered_at = state_attr(s.entity_id, 'delivered_at') %}
+      {% if delivered_at %}
+        {% set delivered = delivered + [
+          {
+            'entity_id': s.entity_id,
+            'tracking': state_attr(s.entity_id, 'tracking_code') or s.name,
+            'sender': state_attr(s.entity_id, 'sender') or 'Onbekende afzender',
+            'status': states(s.entity_id),
+            'delivered_at': delivered_at,
+            'delivery_location': state_attr(s.entity_id, 'delivery_location')
+          }
+        ] %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {% set sorted = delivered | sort(attribute='delivered_at', reverse=true) %}
+  {% if sorted | length == 0 %}
+  Geen bezorgde pakketten in het huidige retentievenster.
+  {% else %}
+  {% for p in sorted %}
+  **{{ loop.index }}. Pakket: {{ p.tracking }}**
+  - Afzender: {{ p.sender }}
+  - Status: {{ p.status }}
+  - Bezorgd: {{ p.delivered_day_label or 'recent' }} om {{ as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Bezorglocatie: {{ p.delivery_location or 'geen gegevens' }}
+
+  {% endfor %}
   {% endif %}

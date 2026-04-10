@@ -55,6 +55,7 @@ ATTR_DELIVERY_TIME_FROM: Final = "delivery_time_from"
 ATTR_DELIVERY_TIME_TO: Final = "delivery_time_to"
 ATTR_DELIVERY_DAY_LABEL: Final = "delivery_day_label"
 ATTR_STATUS_PL: Final = "status_pl"
+ATTR_DELIVERY_LOCATION: Final = "delivery_location"
 
 STATUS_CATEGORIES = {
     "CUSTOMS": "Customs processing",

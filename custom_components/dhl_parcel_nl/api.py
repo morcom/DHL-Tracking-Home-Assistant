@@ -6,6 +6,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 import aiohttp
 from aiohttp import ClientError, ClientResponseError
@@ -47,6 +48,7 @@ class DHLParcelNLAPI:
         self.refresh_token: str | None = None
         self.token_expires_at: datetime | None = None
         self.is_consumer_account = False
+        self._geocode_cache: dict[str, str | None] = {}
 
     async def get_tracking_info(
         self, tracking_code: str, postal_code: str | None = None
@@ -124,6 +126,7 @@ class DHLParcelNLAPI:
             delivery_date = delivery_timeframe.split("/")[0]
 
         delivered_at = raw.get("deliveredAt")
+        delivery_location = None
         if not delivered_at and raw_events:
             for event in reversed(raw_events):
                 if event.get("category") == "DELIVERED":
@@ -132,7 +135,20 @@ class DHLParcelNLAPI:
                         or event.get("localTimestamp")
                         or event.get("timestamp")
                     )
+                    if not delivery_location:
+                        delivery_location = self._extract_event_location(event)
                     break
+
+        if not delivery_location:
+            delivery_location = self._extract_delivery_address(raw)
+
+        if not delivery_location and isinstance(raw.get("geoLocation"), dict):
+            # Final fallback only when no address/location text is available.
+            geo = raw.get("geoLocation", {})
+            lat = geo.get("latitude") or geo.get("lat")
+            lon = geo.get("longitude") or geo.get("lon")
+            if lat is not None and lon is not None:
+                delivery_location = f"GPS {lat},{lon}"
 
         sender = data.get("sender") or data.get("shipper")
         sender_name = None
@@ -166,9 +182,58 @@ class DHLParcelNLAPI:
             "estimated_delivery": data.get("estimatedDeliveryTime")
             or data.get("estimatedTimeOfDelivery"),
             "delivered_at": delivered_at,
+            "delivery_location": delivery_location,
             "last_event_status": events[-1].get("status") if events else None,
             "raw": data,
         }
+
+    def _extract_event_location(self, event: dict[str, Any]) -> str | None:
+        """Extract human-readable location from delivered event."""
+        location = event.get("location")
+        if isinstance(location, dict):
+            name = location.get("name")
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+
+        # Some payloads include facility/route/service area text.
+        for key in ("facility", "serviceArea"):
+            val = event.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+
+        return None
+
+    def _extract_delivery_address(self, raw: dict[str, Any]) -> str | None:
+        """Build delivery address text from shipment payload."""
+        candidates = [
+            raw.get("destination", {}).get("address")
+            if isinstance(raw.get("destination"), dict)
+            else None,
+            raw.get("lastKnownDestination", {}).get("address")
+            if isinstance(raw.get("lastKnownDestination"), dict)
+            else None,
+            raw.get("receiver", {}).get("address")
+            if isinstance(raw.get("receiver"), dict)
+            else None,
+        ]
+
+        for addr in candidates:
+            if not isinstance(addr, dict):
+                continue
+
+            street = addr.get("street")
+            house_number = addr.get("houseNumber")
+            postal_code = addr.get("postalCode")
+            city = addr.get("city")
+            country = addr.get("countryCode")
+
+            line1 = " ".join([str(v) for v in (street, house_number) if v])
+            line2 = " ".join([str(v) for v in (postal_code, city) if v])
+            parts = [p for p in (line1, line2, country) if p]
+            if parts:
+                return ", ".join(parts)
+
+        return None
 
     def _parse_event(self, event: dict[str, Any]) -> dict[str, Any]:
         """Parse individual tracking event."""
@@ -321,6 +386,7 @@ class DHLParcelNLAPI:
             data = await response.json()
 
             tracking_codes = []
+            delivered_codes = []
             parcels: list[dict[str, Any]] = []
             if (
                 isinstance(data, dict)
@@ -337,12 +403,20 @@ class DHLParcelNLAPI:
                     or parcel.get("trackingCode")
                     or parcel.get("barcode")
                 )
-                category = parcel.get("category") or parcel.get("status")
-                if tracker_code and category != "DELIVERED":
-                    tracking_codes.append(str(tracker_code))
+                status = (parcel.get("status") or parcel.get("category") or "").upper()
+                if tracker_code:
+                    code = str(tracker_code)
+                    if status == "DELIVERED":
+                        delivered_codes.append(code)
+                    else:
+                        tracking_codes.append(code)
+
+            tracking_codes.extend(delivered_codes)
 
             _LOGGER.debug(
-                "Found %d active parcels in consumer account", len(tracking_codes)
+                "Found %d parcels in consumer account (%d delivered)",
+                len(tracking_codes),
+                len(delivered_codes),
             )
             return list(dict.fromkeys(tracking_codes))
 
@@ -355,12 +429,13 @@ class DHLParcelNLAPI:
                     "Accept": "application/json",
                     "Authorization": f"Bearer {self.access_token}",
                 },
-                params={"status": "active", "limit": 50},
+                params={"limit": 100},
             )
             response.raise_for_status()
             data = await response.json()
 
             tracking_codes: list[str] = []
+            delivered_codes: list[str] = []
             shipments: list[dict[str, Any]] = []
 
             if isinstance(data, list):
@@ -377,13 +452,162 @@ class DHLParcelNLAPI:
                     or shipment.get("trackingCode")
                     or shipment.get("barcode")
                 )
+                status = (
+                    shipment.get("status") or shipment.get("category") or ""
+                ).upper()
                 if tracker_code:
-                    tracking_codes.append(str(tracker_code))
+                    code = str(tracker_code)
+                    if status == "DELIVERED":
+                        delivered_codes.append(code)
+                    else:
+                        tracking_codes.append(code)
+
+            tracking_codes.extend(delivered_codes)
 
             _LOGGER.debug(
-                "Found %d active parcels in business account", len(tracking_codes)
+                "Found %d parcels in business account (%d delivered)",
+                len(tracking_codes),
+                len(delivered_codes),
             )
             return list(dict.fromkeys(tracking_codes))
+
+    async def enrich_delivery_location(
+        self,
+        tracking_data: dict[str, Any],
+        language: str = "en",
+    ) -> None:
+        """Resolve GPS delivery location to human-readable address."""
+        current_location = tracking_data.get("delivery_location")
+        coords = self._parse_gps_location(current_location)
+        if not coords:
+            return
+
+        lat, lon = coords
+        cache_key = f"{lat:.5f},{lon:.5f}|{language}"
+        if cache_key in self._geocode_cache:
+            resolved = self._geocode_cache[cache_key]
+            if resolved:
+                tracking_data["delivery_location"] = resolved
+            return
+
+        resolved = await self._reverse_geocode_nominatim(lat, lon, language)
+        if not resolved:
+            resolved = await self._reverse_geocode_bigdatacloud(lat, lon, language)
+
+        self._geocode_cache[cache_key] = resolved
+        if resolved:
+            tracking_data["delivery_location"] = resolved
+
+    def _parse_gps_location(self, value: Any) -> tuple[float, float] | None:
+        """Parse location text into latitude/longitude when possible."""
+        if not isinstance(value, str):
+            return None
+        raw = value.strip()
+        if raw.upper().startswith("GPS "):
+            raw = raw[4:].strip()
+        if "," not in raw:
+            return None
+
+        left, right = raw.split(",", 1)
+        try:
+            lat = float(left.strip())
+            lon = float(right.strip())
+            if -90 <= lat <= 90 and -180 <= lon <= 180:
+                return lat, lon
+            return None
+        except ValueError:
+            return None
+
+    async def _reverse_geocode_nominatim(
+        self,
+        lat: float,
+        lon: float,
+        language: str,
+    ) -> str | None:
+        """Reverse geocode using OpenStreetMap Nominatim (free)."""
+        params = {
+            "format": "jsonv2",
+            "lat": f"{lat:.6f}",
+            "lon": f"{lon:.6f}",
+            "zoom": "18",
+            "addressdetails": "1",
+            "accept-language": language,
+        }
+        url = f"https://nominatim.openstreetmap.org/reverse?{urlencode(params)}"
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "DHL-Tracking-Home-Assistant/1.0 (ma@borkowski.nl)",
+        }
+
+        try:
+            async with asyncio.timeout(8):
+                response = await self.session.get(url, headers=headers)
+                response.raise_for_status()
+                data = await response.json()
+
+            address = data.get("address", {}) if isinstance(data, dict) else {}
+            road = address.get("road") or address.get("pedestrian")
+            number = address.get("house_number")
+            postcode = address.get("postcode")
+            city = (
+                address.get("city")
+                or address.get("town")
+                or address.get("village")
+                or address.get("hamlet")
+            )
+            country = address.get("country")
+
+            line1 = " ".join([str(x) for x in (road, number) if x])
+            line2 = " ".join([str(x) for x in (postcode, city) if x])
+            parts = [p for p in (line1, line2, country) if p]
+            if parts:
+                return ", ".join(parts)
+
+            display_name = data.get("display_name") if isinstance(data, dict) else None
+            if isinstance(display_name, str) and display_name.strip():
+                return display_name.strip()
+            return None
+        except Exception as err:
+            _LOGGER.debug("Nominatim reverse geocode failed: %s", err)
+            return None
+
+    async def _reverse_geocode_bigdatacloud(
+        self,
+        lat: float,
+        lon: float,
+        language: str,
+    ) -> str | None:
+        """Fallback reverse geocoding via BigDataCloud free endpoint."""
+        params = {
+            "latitude": f"{lat:.6f}",
+            "longitude": f"{lon:.6f}",
+            "localityLanguage": language,
+        }
+        url = (
+            "https://api.bigdatacloud.net/data/reverse-geocode-client?"
+            f"{urlencode(params)}"
+        )
+        headers = {"Accept": "application/json"}
+
+        try:
+            async with asyncio.timeout(8):
+                response = await self.session.get(url, headers=headers)
+                response.raise_for_status()
+                data = await response.json()
+
+            locality = data.get("locality")
+            city = data.get("city")
+            postcode = data.get("postcode")
+            country = data.get("countryName")
+
+            line = " ".join([str(x) for x in (postcode, city or locality) if x])
+            parts = [p for p in (line, country) if p]
+            if parts:
+                return ", ".join(parts)
+            return None
+        except Exception as err:
+            _LOGGER.debug("BigDataCloud reverse geocode failed: %s", err)
+            return None
 
     async def test_authentication(self) -> bool:
         """Test API authentication."""

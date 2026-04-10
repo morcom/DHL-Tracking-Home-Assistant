@@ -10,6 +10,10 @@
     - trigger: event.received
       entity_id: event.dhl_parcel_netherlands_dhl_parcel_discovered
       event_type: dhl_parcel_discovered
+  conditions:
+    - condition: template
+      value_template: >
+        {{ (trigger.to_state.attributes.get('status') or trigger.to_state.attributes.get('data', {}).get('status_category') or '') != 'DELIVERED' }}
   actions:
     - variables:
         attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
@@ -95,6 +99,8 @@
         sender: "{{ attrs.get('sender') or data.get('shipper_name') or data.get('sender_name') or 'unknown sender' }}"
         tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
         delivered_at: "{{ data.get('delivered_at') }}"
+        delivery_location: "{{ attrs.get('delivery_location') or data.get('delivery_location') or 'unknown' }}"
+        delivered_day: "{{ state_attr('sensor.dhl_delivered_details', 'delivered_by_number').get(tracking, {}).get('delivered_day_label') if state_attr('sensor.dhl_delivered_details', 'delivered_by_number') else 'recently' }}"
         delivered_time: "{{ as_datetime(delivered_at).strftime('%H:%M') if delivered_at else now().strftime('%H:%M') }}"
     - action: tts.speak
       target:
@@ -102,4 +108,4 @@
       data:
         cache: false
         media_player_entity_id: media_player.living_room
-        message: "DHL parcel {{ tracking }} from {{ sender }} was delivered at {{ delivered_time }}."
+        message: "DHL parcel {{ tracking }} from {{ sender }} was delivered {{ delivered_day }} at {{ delivered_time }}. Delivery location: {{ delivery_location }}."
