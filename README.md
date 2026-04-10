@@ -1,12 +1,17 @@
 # DHL Parcel Netherlands (Home Assistant custom integration)
 
-Author: Michal Borkowski (ma@borkowski.nl)
+***Author: Michal Borkowski (ma@borkowski.nl)***
 
-License: GNU GPL v3 or later (see `LICENSE`)
+*License: GNU GPL v3 or later (see `LICENSE`)*
 
 This integration tracks DHL parcels for consumer and business accounts,
 creates dynamic parcel sensors, emits automation events, and exposes
-voice-assistant friendly summary entities.
+voice-assistant friendly summary entities. If you use AI Voice Assistant then 
+just expose dhl_tracking_details or voice summary - and ask - do you have any
+DHL Packages for me? It would provide details. Automatically.
+
+You have as well automation examples - as we need to get variables. So - those
+are to guide you.
 
 ## Account modes
 
