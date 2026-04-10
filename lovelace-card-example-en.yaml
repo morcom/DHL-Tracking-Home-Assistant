@@ -1,0 +1,57 @@
+# CARD 1: Quick DHL summary
+# Shows:
+# - number of active parcels,
+# - tracking/sender overview,
+# - voice-ready summary sensor.
+type: entities
+title: DHL Parcels
+entities:
+  - entity: sensor.dhl_parcel_count
+    name: Parcel count
+  - entity: sensor.dhl_tracking_details
+    name: Tracking and senders
+  - entity: sensor.dhl_parcel_voice_summary
+    name: Voice summary
+
+---
+
+# CARD 2: Dynamic list of all DHL parcels
+# Shows per parcel:
+# - tracking code,
+# - sender,
+# - current status,
+# - expected delivery window or delivered time,
+# - direct tracking URL.
+type: markdown
+title: DHL - Parcel details
+content: |
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details'] %}
+  {% set ns = namespace(found=0) %}
+  {% for s in states.sensor %}
+    {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
+      {% set ns.found = ns.found + 1 %}
+      {% set sender = state_attr(s.entity_id, 'sender') or 'Unknown sender' %}
+      {% set status = states(s.entity_id) %}
+      {% set tcode = state_attr(s.entity_id, 'tracking_code') or s.name %}
+      {% set dfrom = state_attr(s.entity_id, 'delivery_time_from') %}
+      {% set dto = state_attr(s.entity_id, 'delivery_time_to') %}
+      {% set dday = state_attr(s.entity_id, 'delivery_day_label') %}
+      {% set delivered = state_attr(s.entity_id, 'delivered_at') %}
+
+  **{{ ns.found }}. Parcel: {{ tcode }}**
+  - Sender: {{ sender }}
+  - Status: {{ status }}
+      {% if delivered %}
+  - Delivered at: {{ as_datetime(delivered).strftime('%H:%M') }}
+      {% elif dfrom and dto %}
+  - Expected delivery: {{ dday or 'soon' }}, {{ as_datetime(dfrom).strftime('%H:%M') }} - {{ as_datetime(dto).strftime('%H:%M') }}
+      {% else %}
+  - Expected delivery: no data
+      {% endif %}
+  - [Track online]({{ state_attr(s.entity_id, 'tracking_url') }})
+
+    {% endif %}
+  {% endfor %}
+  {% if ns.found == 0 %}
+  No active DHL parcels.
+  {% endif %}

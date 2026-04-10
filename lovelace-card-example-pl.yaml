@@ -1,0 +1,57 @@
+# KARTA 1: Szybkie podsumowanie DHL
+# Co pokaże:
+# - liczbę aktywnych paczek,
+# - skrót trackingów i nadawców,
+# - gotowe podsumowanie głosowe dla Assist/LLM.
+type: entities
+title: DHL Paczki
+entities:
+  - entity: sensor.dhl_parcel_count
+    name: Liczba paczek
+  - entity: sensor.dhl_tracking_details
+    name: Tracking i nadawcy
+  - entity: sensor.dhl_parcel_voice_summary
+    name: Podsumowanie głosowe
+
+---
+
+# KARTA 2: Dynamiczna lista wszystkich paczek DHL
+# Co pokaże dla każdej paczki:
+# - numer tracking,
+# - nadawcę,
+# - aktualny status,
+# - przewidywane okno doręczenia albo godzinę doręczenia,
+# - link do śledzenia online.
+type: markdown
+title: DHL - Szczegóły paczek
+content: |
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details'] %}
+  {% set ns = namespace(found=0) %}
+  {% for s in states.sensor %}
+    {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
+      {% set ns.found = ns.found + 1 %}
+      {% set sender = state_attr(s.entity_id, 'sender') or 'Nieznany nadawca' %}
+      {% set status = state_attr(s.entity_id, 'status_pl') or states(s.entity_id) %}
+      {% set tcode = state_attr(s.entity_id, 'tracking_code') or s.name %}
+      {% set dfrom = state_attr(s.entity_id, 'delivery_time_from') %}
+      {% set dto = state_attr(s.entity_id, 'delivery_time_to') %}
+      {% set dday = state_attr(s.entity_id, 'delivery_day_label') %}
+      {% set delivered = state_attr(s.entity_id, 'delivered_at') %}
+
+  **{{ ns.found }}. Paczka: {{ tcode }}**
+  - Nadawca: {{ sender }}
+  - Status: {{ status }}
+      {% if delivered %}
+  - Doręczona o: {{ as_datetime(delivered).strftime('%H:%M') }}
+      {% elif dfrom and dto %}
+  - Przewidywane doręczenie: {{ dday or 'wkrótce' }}, {{ as_datetime(dfrom).strftime('%H:%M') }} - {{ as_datetime(dto).strftime('%H:%M') }}
+      {% else %}
+  - Termin doręczenia: brak danych
+      {% endif %}
+  - [Śledź online]({{ state_attr(s.entity_id, 'tracking_url') }})
+
+    {% endif %}
+  {% endfor %}
+  {% if ns.found == 0 %}
+  Brak aktywnych paczek DHL.
+  {% endif %}

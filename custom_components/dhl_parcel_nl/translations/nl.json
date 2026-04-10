@@ -1,0 +1,102 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DHL Parcel Nederland",
+        "description": "Kies eerst het accounttype. Consument: e-mail + wachtwoord. Zakelijk: user ID + API key.",
+        "data": {
+          "account_type": "Accounttype",
+          "email": "E-mail (consumentenaccount, leeg = behouden)",
+          "password": "Wachtwoord (consumentenaccount, leeg = behouden)",
+          "user_id": "User ID (zakelijk account)",
+          "api_key": "API key (zakelijk account)",
+          "postal_code": "Postcode (optioneel)",
+          "delivered_keep_days": "Bezorgde pakketten bewaren (dagen)",
+          "refresh_interval_minutes": "Verversingsinterval (minuten)",
+          "refresh_start_time": "Start verversen (HH:MM)",
+          "refresh_end_time": "Einde verversen (HH:MM)",
+          "summary_language": "Taal voor stemsamenvatting"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken",
+      "invalid_auth": "Geef geldige gegevens op",
+      "invalid_auth_consumer": "Consumentenaccount vereist e-mail en wachtwoord",
+      "invalid_auth_business": "Zakelijk account vereist user ID en API key"
+    },
+    "abort": {
+      "already_configured": "Integratie is al geconfigureerd"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "DHL Parcel NL opties",
+        "data": {
+          "account_type": "Accounttype",
+          "email": "E-mail (consumentenaccount, leeg = behouden)",
+          "password": "Wachtwoord (consumentenaccount, leeg = behouden)",
+          "user_id": "User ID (zakelijk account)",
+          "api_key": "API key (zakelijk account)",
+          "postal_code": "Postcode (optioneel)",
+          "tracking_codes": "Handmatige trackingcodes (optioneel, komma-gescheiden)",
+          "delivered_keep_days": "Bezorgde pakketten bewaren (dagen)",
+          "refresh_interval_minutes": "Verversingsinterval (minuten)",
+          "refresh_start_time": "Start verversen (HH:MM)",
+          "refresh_end_time": "Einde verversen (HH:MM)",
+          "summary_language": "Taal voor stemsamenvatting"
+        }
+      }
+    }
+  },
+  "services": {
+    "dhl_parcel_refresh": {
+      "name": "DHL-pakketten verversen",
+      "description": "Forceer directe synchronisatie van DHL-pakketten"
+    }
+  },
+  "entity": {
+    "event": {
+      "parcel_discovered": {
+        "name": "DHL Parcel Pakket gevonden"
+      },
+      "parcel_status_changed": {
+        "name": "DHL Parcel Status gewijzigd"
+      },
+      "parcel_delivery_window_changed": {
+        "name": "DHL Parcel Bezorgvenster gewijzigd"
+      },
+      "parcel_substatus_changed": {
+        "name": "DHL Parcel Substatus gewijzigd"
+      },
+      "parcel_removed": {
+        "name": "DHL Parcel Pakket verwijderd"
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_parcel": "Nieuw pakket gedetecteerd",
+      "status_changed": "Pakketstatus gewijzigd",
+      "delivery_window_changed": "Bezorgvenster gewijzigd",
+      "substatus_changed": "Pakket-substatus gewijzigd",
+      "parcel_removed": "Pakket verwijderd na bewaartermijn"
+    }
+  },
+  "selector": {
+    "account_type": {
+      "options": {
+        "consumer": "Consument (e-mail/wachtwoord)",
+        "business": "Zakelijk (user ID/API key)"
+      }
+    },
+    "summary_language": {
+      "options": {
+        "en": "Engels",
+        "pl": "Pools",
+        "nl": "Nederlands"
+      }
+    }
+  }
+}

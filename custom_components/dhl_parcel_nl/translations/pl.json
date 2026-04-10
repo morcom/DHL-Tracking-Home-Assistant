@@ -1,0 +1,102 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DHL Parcel Netherlands",
+        "description": "Najpierw wybierz typ konta. Konsumenckie: e-mail + haslo. Biznesowe: user ID + API key.",
+        "data": {
+          "account_type": "Typ konta",
+          "email": "E-mail (konto prywatne, puste = bez zmian)",
+          "password": "Haslo (konto prywatne, puste = bez zmian)",
+          "user_id": "User ID (konto biznesowe)",
+          "api_key": "API Key (konto biznesowe)",
+          "postal_code": "Kod pocztowy (opcjonalnie)",
+          "delivered_keep_days": "Przechowuj doreczone paczki (dni)",
+          "refresh_interval_minutes": "Interwal odswiezania (minuty)",
+          "refresh_start_time": "Start odswiezania (HH:MM)",
+          "refresh_end_time": "Koniec odswiezania (HH:MM)",
+          "summary_language": "Jezyk podsumowania glosowego"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie mozna polaczyc",
+      "invalid_auth": "Podaj poprawne dane logowania",
+      "invalid_auth_consumer": "Konto konsumenckie wymaga e-mail i hasla",
+      "invalid_auth_business": "Konto biznesowe wymaga user ID i API key"
+    },
+    "abort": {
+      "already_configured": "Integracja jest juz skonfigurowana"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje DHL Parcel NL",
+        "data": {
+          "account_type": "Typ konta",
+          "email": "E-mail (konto prywatne, puste = bez zmian)",
+          "password": "Haslo (konto prywatne, puste = bez zmian)",
+          "user_id": "User ID (konto biznesowe)",
+          "api_key": "API Key (konto biznesowe)",
+          "postal_code": "Kod pocztowy (opcjonalnie)",
+          "tracking_codes": "Reczne kody sledzenia (opcjonalnie, po przecinku)",
+          "delivered_keep_days": "Przechowuj doreczone paczki (dni)",
+          "refresh_interval_minutes": "Interwal odswiezania (minuty)",
+          "refresh_start_time": "Start odswiezania (HH:MM)",
+          "refresh_end_time": "Koniec odswiezania (HH:MM)",
+          "summary_language": "Jezyk podsumowania glosowego"
+        }
+      }
+    }
+  },
+  "services": {
+    "dhl_parcel_refresh": {
+      "name": "Odswiez paczki DHL",
+      "description": "Wymus natychmiastowe odswiezenie paczek DHL"
+    }
+  },
+  "entity": {
+    "event": {
+      "parcel_discovered": {
+        "name": "DHL Parcel Wykryto paczke"
+      },
+      "parcel_status_changed": {
+        "name": "DHL Parcel Zmiana statusu"
+      },
+      "parcel_delivery_window_changed": {
+        "name": "DHL Parcel Zmiana okna doreczenia"
+      },
+      "parcel_substatus_changed": {
+        "name": "DHL Parcel Zmiana podstatusu"
+      },
+      "parcel_removed": {
+        "name": "DHL Parcel Usunieto paczke"
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_parcel": "Wykryto nowa paczke",
+      "status_changed": "Zmienil sie status paczki",
+      "delivery_window_changed": "Zmienilo sie okno doreczenia",
+      "substatus_changed": "Zmienil sie podstatus paczki",
+      "parcel_removed": "Usunieto paczke po okresie retencji"
+    }
+  },
+  "selector": {
+    "account_type": {
+      "options": {
+        "consumer": "Konsumenckie (e-mail/haslo)",
+        "business": "Biznesowe (user ID/API key)"
+      }
+    },
+    "summary_language": {
+      "options": {
+        "en": "Angielski",
+        "pl": "Polski",
+        "nl": "Niderlandzki"
+      }
+    }
+  }
+}

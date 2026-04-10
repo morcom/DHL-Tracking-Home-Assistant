@@ -1,0 +1,105 @@
+# DHL Parcel NL automation examples (Home Assistant 2026) - English
+# Replace TTS/media entities with your own.
+
+# A0) New parcel discovered
+- alias: "DHL - new parcel (EN)"
+  id: dhl_parcel_discovered_en
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_discovered
+      event_type: dhl_parcel_discovered
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        data: "{{ attrs.get('data', {}) }}"
+        sender: "{{ attrs.get('sender') or data.get('shipper_name') or data.get('sender_name') or 'unknown sender' }}"
+        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
+        status: "{{ attrs.get('status_localized') or attrs.get('status') or data.get('status_en') or data.get('status_category') or 'UNKNOWN' }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.home_assistant_cloud
+      data:
+        cache: false
+        media_player_entity_id: media_player.living_room
+        message: "New DHL parcel {{ tracking }} from {{ sender }}. Current status: {{ status }}."
+
+# A) Status changed
+- alias: "DHL - status changed (EN)"
+  id: dhl_status_changed_en
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
+      event_type: dhl_parcel_status_changed
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or attrs.get('data', {}).get('sender_name') or 'unknown sender' }}"
+        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
+        new_status: "{{ attrs.get('new_status_localized') or attrs.get('new_status') or attrs.get('status_localized') or attrs.get('status') or 'unknown' }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.home_assistant_cloud
+      data:
+        cache: false
+        media_player_entity_id: media_player.living_room
+        message: "DHL parcel {{ tracking }} from {{ sender }} changed status to {{ new_status }}."
+
+# B) Delivery window changed
+- alias: "DHL - delivery window (EN)"
+  id: dhl_delivery_window_en
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_delivery_window_changed
+      event_type: dhl_parcel_delivery_window_changed
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or attrs.get('data', {}).get('sender_name') or 'unknown sender' }}"
+        tf_raw: "{{ attrs.get('new_delivery_timeframe') or attrs.get('data', {}).get('delivery_timeframe') }}"
+        tf_from_iso: >
+          {% if tf_raw is string and '/' in tf_raw %}{{ tf_raw.split('/')[0] }}{% elif tf_raw is mapping %}{{ tf_raw.get('from') }}{% else %}{{ None }}{% endif %}
+        tf_to_iso: >
+          {% if tf_raw is string and '/' in tf_raw %}{{ tf_raw.split('/')[1] }}{% elif tf_raw is mapping %}{{ tf_raw.get('to') }}{% else %}{{ None }}{% endif %}
+        from_time: "{{ as_datetime(tf_from_iso).strftime('%H:%M') if tf_from_iso else 'unknown' }}"
+        to_time: "{{ as_datetime(tf_to_iso).strftime('%H:%M') if tf_to_iso else 'unknown' }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.home_assistant_cloud
+      data:
+        cache: false
+        media_player_entity_id: media_player.living_room
+        message: "DHL parcel from {{ sender }} is expected between {{ from_time }} and {{ to_time }}."
+
+# C) Delivered
+- alias: "DHL - delivered (EN)"
+  id: dhl_delivered_en
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
+      event_type: dhl_parcel_status_changed
+  conditions:
+    - condition: template
+      value_template: "{{ (trigger.to_state.attributes.get('new_status') or '') == 'DELIVERED' }}"
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        data: "{{ attrs.get('data', {}) }}"
+        sender: "{{ attrs.get('sender') or data.get('shipper_name') or data.get('sender_name') or 'unknown sender' }}"
+        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
+        delivered_at: "{{ data.get('delivered_at') }}"
+        delivered_time: "{{ as_datetime(delivered_at).strftime('%H:%M') if delivered_at else now().strftime('%H:%M') }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.home_assistant_cloud
+      data:
+        cache: false
+        media_player_entity_id: media_player.living_room
+        message: "DHL parcel {{ tracking }} from {{ sender }} was delivered at {{ delivered_time }}."

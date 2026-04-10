@@ -1,0 +1,57 @@
+# KAART 1: Snel DHL-overzicht
+# Toont:
+# - aantal actieve pakketten,
+# - tracking/afzender overzicht,
+# - stemvriendelijke samenvattingssensor.
+type: entities
+title: DHL Pakketten
+entities:
+  - entity: sensor.dhl_parcel_count
+    name: Aantal pakketten
+  - entity: sensor.dhl_tracking_details
+    name: Tracking en afzenders
+  - entity: sensor.dhl_parcel_voice_summary
+    name: Spraakoverzicht
+
+---
+
+# KAART 2: Dynamische lijst van alle DHL-pakketten
+# Toont per pakket:
+# - trackingnummer,
+# - afzender,
+# - huidige status,
+# - verwacht levervenster of bezorgtijd,
+# - directe trackinglink.
+type: markdown
+title: DHL - Pakketdetails
+content: |
+  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details'] %}
+  {% set ns = namespace(found=0) %}
+  {% for s in states.sensor %}
+    {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
+      {% set ns.found = ns.found + 1 %}
+      {% set sender = state_attr(s.entity_id, 'sender') or 'Onbekende afzender' %}
+      {% set status = states(s.entity_id) %}
+      {% set tcode = state_attr(s.entity_id, 'tracking_code') or s.name %}
+      {% set dfrom = state_attr(s.entity_id, 'delivery_time_from') %}
+      {% set dto = state_attr(s.entity_id, 'delivery_time_to') %}
+      {% set dday = state_attr(s.entity_id, 'delivery_day_label') %}
+      {% set delivered = state_attr(s.entity_id, 'delivered_at') %}
+
+  **{{ ns.found }}. Pakket: {{ tcode }}**
+  - Afzender: {{ sender }}
+  - Status: {{ status }}
+      {% if delivered %}
+  - Bezorgd om: {{ as_datetime(delivered).strftime('%H:%M') }}
+      {% elif dfrom and dto %}
+  - Verwachte levering: {{ dday or 'binnenkort' }}, {{ as_datetime(dfrom).strftime('%H:%M') }} - {{ as_datetime(dto).strftime('%H:%M') }}
+      {% else %}
+  - Verwachte levering: geen gegevens
+      {% endif %}
+  - [Online volgen]({{ state_attr(s.entity_id, 'tracking_url') }})
+
+    {% endif %}
+  {% endfor %}
+  {% if ns.found == 0 %}
+  Geen actieve DHL-pakketten.
+  {% endif %}

@@ -1,0 +1,14 @@
+{
+  "domain": "dhl_parcel_nl",
+  "name": "DHL Parcel Netherlands",
+  "version": "1.4.4",
+  "config_flow": true,
+  "documentation": "https://github.com/custom-components/dhl_parcel_nl",
+  "issue_tracker": "https://github.com/custom-components/dhl_parcel_nl/issues",
+  "codeowners": ["@michalborkowski"],
+  "dependencies": [],
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "quality_scale": "silver",
+  "requirements": []
+}

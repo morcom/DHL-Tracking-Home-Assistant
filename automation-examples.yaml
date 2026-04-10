@@ -1,0 +1,174 @@
+# DHL Parcel NL automation examples (Polish default)
+# Language-specific versions:
+# - automation-examples-pl.yaml
+# - automation-examples-en.yaml
+# - automation-examples-nl.yaml
+
+# A) Status change -> announce shipper and new status
+- alias: "DHL - status changed (PL)"
+  id: dhl_status_changed_pl
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
+      event_type: dhl_parcel_status_changed
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or attrs.get('data', {}).get('sender_name') or 'nieznany nadawca' }}"
+        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
+        new_status: "{{ attrs.get('new_status', attrs.get('status', 'unknown')) }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.piper_2
+      data:
+        cache: false
+        media_player_entity_id: media_player.office
+        message: "Paczka DHL {{ tracking }} od nadawcy {{ sender }} zmieniła status na {{ new_status }}."
+
+# A0) New parcel discovered -> announce sender + initial status
+- alias: "DHL - parcel discovered (PL)"
+  id: dhl_parcel_discovered_pl
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_discovered
+      event_type: dhl_parcel_discovered
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        data: "{{ attrs.get('data', {}) }}"
+        sender: "{{ attrs.get('sender') or data.get('shipper_name') or data.get('sender_name') or 'nieznany nadawca' }}"
+        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
+        status: "{{ attrs.get('status') or data.get('status_category') or 'UNKNOWN' }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.piper_2
+      data:
+        cache: false
+        media_player_entity_id: media_player.office
+        message: "Wykryto nową paczkę DHL {{ tracking }} od {{ sender }}. Aktualny status: {{ status }}."
+
+# B) Delivery window change -> announce local time window and day label
+- alias: "DHL - delivery window (PL)"
+  id: dhl_delivery_window_pl
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_delivery_window_changed
+      event_type: dhl_parcel_delivery_window_changed
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or attrs.get('data', {}).get('sender_name') or 'nieznany nadawca' }}"
+        tf_raw: "{{ attrs.get('new_delivery_timeframe') or attrs.get('data', {}).get('delivery_timeframe') }}"
+        tf_from_iso: >
+          {% if tf_raw is string and '/' in tf_raw %}
+            {{ tf_raw.split('/')[0] }}
+          {% elif tf_raw is mapping %}
+            {{ tf_raw.get('from') }}
+          {% else %}
+            {{ None }}
+          {% endif %}
+        tf_to_iso: >
+          {% if tf_raw is string and '/' in tf_raw %}
+            {{ tf_raw.split('/')[1] }}
+          {% elif tf_raw is mapping %}
+            {{ tf_raw.get('to') }}
+          {% else %}
+            {{ None }}
+          {% endif %}
+        from_time: "{{ as_datetime(tf_from_iso).strftime('%H:%M') if tf_from_iso else 'nieznana' }}"
+        to_time: "{{ as_datetime(tf_to_iso).strftime('%H:%M') if tf_to_iso else 'nieznana' }}"
+        day_label: >
+          {% if tf_from_iso %}
+            {% set d = as_datetime(tf_from_iso).date() %}
+            {% set diff = (d - now().date()).days %}
+            {% if diff == 0 %}dzisiaj{% elif diff == 1 %}jutro{% elif diff == 2 %}pojutrze{% else %}{{ d.strftime('%d.%m') }}{% endif %}
+          {% else %}
+            wkrótce
+          {% endif %}
+    - action: tts.speak
+      target:
+        entity_id: tts.piper_2
+      data:
+        cache: false
+        media_player_entity_id: media_player.office
+        message: "Paczka DHL od {{ sender }} będzie doręczana {{ day_label }} między {{ from_time }} a {{ to_time }}."
+
+# C) Delivered -> announce delivered local time
+- alias: "DHL - delivered announce (PL)"
+  id: dhl_delivered_pl
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
+      event_type: dhl_parcel_status_changed
+  conditions:
+    - condition: template
+      value_template: "{{ (trigger.to_state.attributes.get('new_status') or '') == 'DELIVERED' }}"
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        data: "{{ attrs.get('data', {}) }}"
+        sender: "{{ attrs.get('sender') or data.get('shipper_name') or data.get('sender_name') or 'nieznany nadawca' }}"
+        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
+        delivered_at: "{{ data.get('delivered_at') }}"
+        delivered_time: "{{ as_datetime(delivered_at).strftime('%H:%M') if delivered_at else now().strftime('%H:%M') }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.piper_2
+      data:
+        cache: false
+        media_player_entity_id: media_player.office
+        message: "Paczka DHL {{ tracking }} od {{ sender }} została doręczona o {{ delivered_time }}."
+
+# C2) Substatus change -> announce detailed DHL step (optional)
+- alias: "DHL - substatus changed (PL)"
+  id: dhl_substatus_changed_pl
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      entity_id: event.dhl_parcel_netherlands_dhl_parcel_substatus_changed
+      event_type: dhl_parcel_substatus_changed
+  actions:
+    - variables:
+        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+        sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or attrs.get('data', {}).get('sender_name') or 'nieznany nadawca' }}"
+        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
+        new_substatus: "{{ attrs.get('new_substatus', 'unknown') }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.piper_2
+      data:
+        cache: false
+        media_player_entity_id: media_player.office
+        message: "Paczka DHL {{ tracking }} od {{ sender }} ma nowy etap: {{ new_substatus }}."
+
+# D) Voice assistant helper (template sensor example)
+# Put in template integration to expose concise overview for AI assistant.
+#
+# template:
+#   - sensor:
+#       - name: "DHL Packages Voice Summary"
+#         state: >
+#           {% set parcels = state_attr('sensor.dhl_parcel_count', 'parcels') or [] %}
+#           {% if parcels | length == 0 %}
+#             Brak aktywnych paczek DHL.
+#           {% else %}
+#             Mam {{ parcels | length }} aktywne paczki DHL.
+#             {% for p in parcels %}
+#               Paczka od {{ p.sender or 'nieznanego nadawcy' }}
+#               ma status {{ p.status or 'unknown' }}
+#               {% if p.delivery_time_from and p.delivery_time_to %}
+#                 i przewidywane doręczenie {{ p.delivery_day_label or '' }} między
+#                 {{ as_datetime(p.delivery_time_from).strftime('%H:%M') }}
+#                 a {{ as_datetime(p.delivery_time_to).strftime('%H:%M') }}.
+#               {% endif %}
+#             {% endfor %}
+#           {% endif %}
