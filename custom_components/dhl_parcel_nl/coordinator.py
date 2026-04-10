@@ -207,6 +207,11 @@ class DHLParcelNLCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                     tracking_code, self.postal_code
                 )
 
+                await self.api.enrich_delivery_location(
+                    tracking_data,
+                    self.summary_language,
+                )
+
                 self._check_for_status_change(tracking_code, tracking_data)
                 self._check_for_substatus_change(tracking_code, tracking_data)
                 self._check_for_delivery_window_change(tracking_code, tracking_data)

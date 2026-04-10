@@ -144,6 +144,50 @@ def _format_hhmm(dt_iso: str | None) -> str | None:
         return None
 
 
+def _past_day_label_for_lang(dt_iso: str | None, lang: str) -> str | None:
+    """Return relative day label for delivered timestamps."""
+    if not dt_iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(dt_iso.replace("Z", "+00:00"))
+        today = datetime.now(dt.tzinfo).date() if dt.tzinfo else datetime.now().date()
+        diff = (dt.date() - today).days
+
+        if lang == "pl":
+            if diff == 0:
+                return "dzisiaj"
+            if diff == -1:
+                return "wczoraj"
+            if diff == -2:
+                return "przedwczoraj"
+            if diff < -2:
+                return f"{-diff} dni temu"
+            return dt.date().isoformat()
+
+        if lang == "nl":
+            if diff == 0:
+                return "vandaag"
+            if diff == -1:
+                return "gisteren"
+            if diff == -2:
+                return "eergisteren"
+            if diff < -2:
+                return f"{-diff} dagen geleden"
+            return dt.date().isoformat()
+
+        if diff == 0:
+            return "today"
+        if diff == -1:
+            return "yesterday"
+        if diff == -2:
+            return "two days ago"
+        if diff < -2:
+            return f"{-diff} days ago"
+        return dt.date().isoformat()
+    except Exception:
+        return None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -379,6 +423,10 @@ class DHLParcelCountSensor(CoordinatorEntity[DHLParcelNLCoordinator], SensorEnti
                     "delivery_day_label": _delivery_day_label(delivery_from),
                     "delivery_day_label_pl": _delivery_day_label_pl(delivery_from),
                     "delivered_at": payload.get("delivered_at"),
+                    "delivered_day_label": _past_day_label_for_lang(
+                        payload.get("delivered_at"),
+                        getattr(self.coordinator, "summary_language", "en"),
+                    ),
                     "delivery_location": payload.get("delivery_location"),
                 }
             )
@@ -459,6 +507,9 @@ class DHLParcelVoiceSummarySensor(
                     "delivered_at": payload.get("delivered_at"),
                     "delivery_location": payload.get("delivery_location"),
                     "delivered_at_hhmm": _format_hhmm(payload.get("delivered_at")),
+                    "delivered_day_label": _past_day_label_for_lang(
+                        payload.get("delivered_at"), lang
+                    ),
                 }
             )
 
@@ -501,13 +552,13 @@ class DHLParcelVoiceSummarySensor(
 
             if delivered_hhmm:
                 parts_en.append(
-                    f"Package {index} from {sender} is {status_en} and was delivered at {delivered_hhmm}."
+                    f"Package {index} from {sender} is {status_en} and was delivered {p.get('delivered_day_label') or 'recently'} at {delivered_hhmm}."
                 )
                 parts_pl.append(
-                    f"Paczka {index} od {sender} ma status {status_pl} i została doręczona o {delivered_hhmm}."
+                    f"Paczka {index} od {sender} ma status {status_pl} i została doręczona {p.get('delivered_day_label') or 'niedawno'} o {delivered_hhmm}."
                 )
                 parts_nl.append(
-                    f"Pakket {index} van {sender} heeft status {status_nl} en is bezorgd om {delivered_hhmm}."
+                    f"Pakket {index} van {sender} heeft status {status_nl} en is bezorgd {p.get('delivered_day_label') or 'recent'} om {delivered_hhmm}."
                 )
                 continue
 
@@ -604,6 +655,8 @@ class DHLParcelTrackingDetailsSensor(
         """Build details rows keyed by tracking code."""
         rows: list[dict[str, Any]] = []
         for code, payload in (self.coordinator.data or {}).items():
+            if payload.get("is_delivered") or payload.get("delivered_at"):
+                continue
             sender = (
                 payload.get("sender_name")
                 or payload.get("shipper_name")
@@ -719,6 +772,7 @@ class DHLParcelDeliveredDetailsSensor(
                     ),
                     "delivered_at": delivered_at,
                     "delivered_at_hhmm": _format_hhmm(delivered_at),
+                    "delivered_day_label": _past_day_label_for_lang(delivered_at, lang),
                     "delivery_location": payload.get("delivery_location"),
                 }
             )
@@ -732,7 +786,10 @@ class DHLParcelDeliveredDetailsSensor(
         rows = self._build_rows(getattr(self.coordinator, "summary_language", "en"))
         if not rows:
             return "No delivered tracking numbers"
-        compact = ", ".join(f"{r['tracking_code']}:{r['sender']}" for r in rows)
+        compact = ", ".join(
+            f"{r['tracking_code']}:{r['sender']}:{r.get('delivered_day_label') or ''}:{r.get('delivered_at_hhmm') or ''}"
+            for r in rows
+        )
         return compact[:250] if len(compact) > 250 else compact
 
     @property
@@ -742,7 +799,15 @@ class DHLParcelDeliveredDetailsSensor(
         rows = self._build_rows(lang)
         by_tracking = {row["tracking_code"]: row for row in rows}
         csv_simple = ", ".join(
-            f"{row['tracking_code']}|{row['sender']}|{row.get('delivered_at_hhmm') or ''}"
+            f"{row['tracking_code']}|{row['sender']}|{row.get('delivered_day_label') or ''}|{row.get('delivered_at_hhmm') or ''}"
+            for row in rows
+        )
+        csv_extended = ", ".join(
+            (
+                f"{row['tracking_code']}|{row['sender']}|{row.get('status_localized') or ''}"
+                f"|{row.get('delivered_day_label') or ''}|{row.get('delivered_at_hhmm') or ''}"
+                f"|{row.get('delivery_location') or ''}"
+            )
             for row in rows
         )
 
@@ -750,6 +815,7 @@ class DHLParcelDeliveredDetailsSensor(
             "summary_language": lang,
             "delivered_count": len(rows),
             "dhl_delivered_numbers": csv_simple,
+            "dhl_delivered_numbers_extended": csv_extended,
             "delivered_tracking_numbers": [row["tracking_code"] for row in rows],
             "delivered_details": rows,
             "delivered_by_number": by_tracking,
@@ -796,6 +862,9 @@ class DHLParcelDeliveredSummarySensor(
                     ),
                     "delivered_at": payload.get("delivered_at"),
                     "delivered_at_hhmm": _format_hhmm(payload.get("delivered_at")),
+                    "delivered_day_label": _past_day_label_for_lang(
+                        payload.get("delivered_at"), lang
+                    ),
                     "delivery_location": payload.get("delivery_location"),
                 }
             )
@@ -814,7 +883,7 @@ class DHLParcelDeliveredSummarySensor(
             parts = [f"Masz {len(rows)} doręczone paczki DHL."]
             for i, r in enumerate(rows, start=1):
                 parts.append(
-                    f"Paczka {i} od {r['sender']} doręczona o {r.get('delivered_at_hhmm') or 'nieznanej godzinie'}, lokalizacja {r.get('delivery_location') or 'brak danych'}."
+                    f"Paczka {i} od {r['sender']} doręczona {r.get('delivered_day_label') or 'niedawno'} o {r.get('delivered_at_hhmm') or 'nieznanej godzinie'}, lokalizacja {r.get('delivery_location') or 'brak danych'}."
                 )
             return " ".join(parts)
 
@@ -822,14 +891,14 @@ class DHLParcelDeliveredSummarySensor(
             parts = [f"Je hebt {len(rows)} bezorgde DHL-pakketten."]
             for i, r in enumerate(rows, start=1):
                 parts.append(
-                    f"Pakket {i} van {r['sender']} bezorgd om {r.get('delivered_at_hhmm') or 'onbekende tijd'}, locatie {r.get('delivery_location') or 'geen gegevens'}."
+                    f"Pakket {i} van {r['sender']} bezorgd {r.get('delivered_day_label') or 'recent'} om {r.get('delivered_at_hhmm') or 'onbekende tijd'}, locatie {r.get('delivery_location') or 'geen gegevens'}."
                 )
             return " ".join(parts)
 
         parts = [f"You have {len(rows)} delivered DHL parcels."]
         for i, r in enumerate(rows, start=1):
             parts.append(
-                f"Package {i} from {r['sender']} delivered at {r.get('delivered_at_hhmm') or 'unknown time'}, location {r.get('delivery_location') or 'no data'}."
+                f"Package {i} from {r['sender']} delivered {r.get('delivered_day_label') or 'recently'} at {r.get('delivered_at_hhmm') or 'unknown time'}, location {r.get('delivery_location') or 'no data'}."
             )
         return " ".join(parts)
 

@@ -99,7 +99,7 @@ content: |
   **{{ loop.index }}. Pakket: {{ p.tracking }}**
   - Afzender: {{ p.sender }}
   - Status: {{ p.status }}
-  - Bezorgd om: {{ as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Bezorgd: {{ p.delivered_day_label or 'recent' }} om {{ as_datetime(p.delivered_at).strftime('%H:%M') }}
   - Bezorglocatie: {{ p.delivery_location or 'geen gegevens' }}
 
   {% endfor %}

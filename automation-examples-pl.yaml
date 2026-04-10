@@ -100,6 +100,7 @@
         tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
         delivered_at: "{{ data.get('delivered_at') }}"
         delivery_location: "{{ attrs.get('delivery_location') or data.get('delivery_location') or 'brak lokalizacji' }}"
+        delivered_day: "{{ state_attr('sensor.dhl_delivered_details', 'delivered_by_number').get(tracking, {}).get('delivered_day_label') if state_attr('sensor.dhl_delivered_details', 'delivered_by_number') else 'niedawno' }}"
         delivered_time: "{{ as_datetime(delivered_at).strftime('%H:%M') if delivered_at else now().strftime('%H:%M') }}"
     - action: tts.speak
       target:
@@ -107,7 +108,7 @@
       data:
         cache: false
         media_player_entity_id: media_player.office
-        message: "Paczka DHL {{ tracking }} od {{ sender }} została doręczona o {{ delivered_time }}. Lokalizacja doręczenia: {{ delivery_location }}."
+        message: "Paczka DHL {{ tracking }} od {{ sender }} została doręczona {{ delivered_day }} o {{ delivered_time }}. Lokalizacja doręczenia: {{ delivery_location }}."
 
 # D) Ostatnio doręczone paczki (zmiany statusu na DELIVERED)
 - alias: "DHL - doręczone ostatnio (PL)"

@@ -100,6 +100,7 @@
         tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
         delivered_at: "{{ data.get('delivered_at') }}"
         delivery_location: "{{ attrs.get('delivery_location') or data.get('delivery_location') or 'onbekend' }}"
+        delivered_day: "{{ state_attr('sensor.dhl_delivered_details', 'delivered_by_number').get(tracking, {}).get('delivered_day_label') if state_attr('sensor.dhl_delivered_details', 'delivered_by_number') else 'recent' }}"
         delivered_time: "{{ as_datetime(delivered_at).strftime('%H:%M') if delivered_at else now().strftime('%H:%M') }}"
     - action: tts.speak
       target:
@@ -107,4 +108,4 @@
       data:
         cache: false
         media_player_entity_id: media_player.living_room
-        message: "DHL pakket {{ tracking }} van {{ sender }} is bezorgd om {{ delivered_time }}. Bezorglocatie: {{ delivery_location }}."
+        message: "DHL pakket {{ tracking }} van {{ sender }} is bezorgd {{ delivered_day }} om {{ delivered_time }}. Bezorglocatie: {{ delivery_location }}."

@@ -99,7 +99,7 @@ content: |
   **{{ loop.index }}. Parcel: {{ p.tracking }}**
   - Sender: {{ p.sender }}
   - Status: {{ p.status }}
-  - Delivered at: {{ as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Delivered: {{ p.delivered_day_label or 'recently' }} at {{ as_datetime(p.delivered_at).strftime('%H:%M') }}
   - Delivery location: {{ p.delivery_location or 'no data' }}
 
   {% endfor %}

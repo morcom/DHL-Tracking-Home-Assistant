@@ -174,7 +174,8 @@ The summary text includes per-package details:
 - `tracking_by_number` (object keyed by tracking code)
 
 `sensor.dhl_delivered_details` includes a delivered-only matrix:
-- `dhl_delivered_numbers` (comma-separated `tracking|sender|delivered_time`)
+- `dhl_delivered_numbers` (comma-separated `tracking|sender|delivered_day|delivered_time`)
+- `dhl_delivered_numbers_extended` (comma-separated `tracking|sender|status|delivered_day|delivered_time|delivery_location`)
 - `delivered_tracking_numbers`
 - `delivered_details` (list sorted newest first)
 - `delivered_by_number` (object keyed by tracking code)
@@ -214,7 +215,12 @@ Event payload localization:
 
 Delivered-event fields:
 - `delivered_at`
-- `delivery_location`
+- `delivery_location` (human-readable place/address when available; GPS only as fallback)
+
+Reverse-geocoding for delivery location:
+- preferred free source: OpenStreetMap Nominatim
+- fallback free source: BigDataCloud reverse-geocode-client
+- result is cached in memory and used to replace raw GPS in summaries/events when possible
 
 Entity cleanup behavior:
 - parcels removed from DHL account are automatically removed from active tracking
