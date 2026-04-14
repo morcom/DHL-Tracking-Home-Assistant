@@ -29,35 +29,24 @@ entities:
 type: markdown
 title: DHL - Pakketdetails
 content: |
-  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details', 'sensor.dhl_delivered_details'] %}
-  {% set ns = namespace(found=0) %}
-  {% for s in states.sensor %}
-    {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
-      {% set ns.found = ns.found + 1 %}
-      {% set sender = state_attr(s.entity_id, 'sender') or 'Onbekende afzender' %}
-      {% set status = states(s.entity_id) %}
-      {% set tcode = state_attr(s.entity_id, 'tracking_code') or s.name %}
-      {% set dfrom = state_attr(s.entity_id, 'delivery_time_from') %}
-      {% set dto = state_attr(s.entity_id, 'delivery_time_to') %}
-      {% set dday = state_attr(s.entity_id, 'delivery_day_label') %}
-      {% set delivered = state_attr(s.entity_id, 'delivered_at') %}
-
-  **{{ ns.found }}. Pakket: {{ tcode }}**
-  - Afzender: {{ sender }}
-  - Status: {{ status }}
-      {% if delivered %}
-  - Bezorgd om: {{ as_datetime(delivered).strftime('%H:%M') }}
-      {% elif dfrom and dto %}
-  - Verwachte levering: {{ dday or 'binnenkort' }}, {{ as_datetime(dfrom).strftime('%H:%M') }} - {{ as_datetime(dto).strftime('%H:%M') }}
-      {% else %}
-  - Verwachte levering: geen gegevens
-      {% endif %}
-  - [Online volgen]({{ state_attr(s.entity_id, 'tracking_url') }})
-
-    {% endif %}
-  {% endfor %}
-  {% if ns.found == 0 %}
+  {% set rows = state_attr('sensor.dhl_tracking_details', 'tracking_details') or [] %}
+  {% if rows | length == 0 %}
   Geen actieve DHL-pakketten.
+  {% else %}
+  {% for p in rows %}
+  **{{ loop.index }}. Pakket: {{ p.tracking_code }}**
+  - Afzender: {{ p.sender or 'Onbekende afzender' }}
+  - Status: {{ p.status_localized or p.status or 'onbekend' }}
+  {% if p.delivery_time_from and p.delivery_time_to %}
+  - Verwachte levering: {{ p.delivery_day_label_localized or p.delivery_day_label or 'binnenkort' }}, {{ p.delivery_time_from_hhmm or as_datetime(p.delivery_time_from).strftime('%H:%M') }} - {{ p.delivery_time_to_hhmm or as_datetime(p.delivery_time_to).strftime('%H:%M') }}
+  {% else %}
+  - Verwachte levering: geen gegevens
+  {% endif %}
+  {% if p.tracking_code %}
+  - [Online volgen](https://www.dhlparcel.nl/nl/volg-uw-zending-0?tt={{ p.tracking_code }})
+  {% endif %}
+
+  {% endfor %}
   {% endif %}
 
 ---
@@ -71,35 +60,15 @@ content: |
 type: markdown
 title: DHL - Recent bezorgd
 content: |
-  {% set ignore = ['sensor.dhl_parcel_count', 'sensor.dhl_parcel_voice_summary', 'sensor.dhl_tracking_details', 'sensor.dhl_delivered_details'] %}
-  {% set delivered = [] %}
-  {% for s in states.sensor %}
-    {% if s.entity_id.startswith('sensor.dhl_parcel_') and s.entity_id not in ignore and states(s.entity_id) not in ['unknown', 'unavailable', 'none', 'None'] %}
-      {% set delivered_at = state_attr(s.entity_id, 'delivered_at') %}
-      {% if delivered_at %}
-        {% set delivered = delivered + [
-          {
-            'entity_id': s.entity_id,
-            'tracking': state_attr(s.entity_id, 'tracking_code') or s.name,
-            'sender': state_attr(s.entity_id, 'sender') or 'Onbekende afzender',
-            'status': states(s.entity_id),
-            'delivered_at': delivered_at,
-            'delivery_location': state_attr(s.entity_id, 'delivery_location')
-          }
-        ] %}
-      {% endif %}
-    {% endif %}
-  {% endfor %}
-
-  {% set sorted = delivered | sort(attribute='delivered_at', reverse=true) %}
-  {% if sorted | length == 0 %}
+  {% set rows = state_attr('sensor.dhl_delivered_details', 'delivered_details') or [] %}
+  {% if rows | length == 0 %}
   Geen bezorgde pakketten in het huidige retentievenster.
   {% else %}
-  {% for p in sorted %}
-  **{{ loop.index }}. Pakket: {{ p.tracking }}**
+  {% for p in rows %}
+  **{{ loop.index }}. Pakket: {{ p.tracking_code }}**
   - Afzender: {{ p.sender }}
-  - Status: {{ p.status }}
-  - Bezorgd: {{ p.delivered_day_label or 'recent' }} om {{ as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Status: {{ p.status_localized or p.status }}
+  - Bezorgd: {{ p.delivered_day_label or 'recent' }} om {{ p.delivered_at_hhmm or as_datetime(p.delivered_at).strftime('%H:%M') }}
   - Bezorglocatie: {{ p.delivery_location or 'geen gegevens' }}
 
   {% endfor %}
