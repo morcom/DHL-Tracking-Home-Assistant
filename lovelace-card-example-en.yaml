@@ -1,0 +1,75 @@
+# CARD 1: Quick DHL summary
+# Shows:
+# - number of active parcels,
+# - tracking/sender overview,
+# - voice-ready summary sensor.
+type: entities
+title: DHL Parcels
+entities:
+  - entity: sensor.dhl_parcel_count
+    name: Parcel count
+  - entity: sensor.dhl_tracking_details
+    name: Tracking and senders
+  - entity: sensor.dhl_delivered_details
+    name: Delivered details
+  - entity: sensor.dhl_parcel_voice_summary
+    name: Voice summary
+  - entity: sensor.dhl_parcel_delivered_summary
+    name: Delivered summary
+
+---
+
+# CARD 2: Dynamic list of all DHL parcels
+# Shows per parcel:
+# - tracking code,
+# - sender,
+# - current status,
+# - expected delivery window or delivered time,
+# - direct tracking URL.
+type: markdown
+title: DHL - Parcel details
+content: |
+  {% set rows = state_attr('sensor.dhl_tracking_details', 'tracking_details') or [] %}
+  {% if rows | length == 0 %}
+  No active DHL parcels.
+  {% else %}
+  {% for p in rows %}
+  **{{ loop.index }}. Parcel: {{ p.tracking_code }}**
+  - Sender: {{ p.sender or 'Unknown sender' }}
+  - Status: {{ p.status_localized or p.status or 'unknown' }}
+  {% if p.delivery_time_from and p.delivery_time_to %}
+  - Expected delivery: {{ p.delivery_day_label_localized or p.delivery_day_label or 'soon' }}, {{ p.delivery_time_from_hhmm or as_datetime(p.delivery_time_from).strftime('%H:%M') }} - {{ p.delivery_time_to_hhmm or as_datetime(p.delivery_time_to).strftime('%H:%M') }}
+  {% else %}
+  - Expected delivery: no data
+  {% endif %}
+  {% if p.tracking_code %}
+  - [Track online](https://www.dhlparcel.nl/nl/volg-uw-zending-0?tt={{ p.tracking_code }})
+  {% endif %}
+
+  {% endfor %}
+  {% endif %}
+
+---
+
+# CARD 3: Recently delivered DHL parcels (last X retention days)
+# Shows:
+# - delivered parcels only,
+# - delivered time,
+# - delivery location when available,
+# - sorted newest first.
+type: markdown
+title: DHL - Recently delivered
+content: |
+  {% set rows = state_attr('sensor.dhl_delivered_details', 'delivered_details') or [] %}
+  {% if rows | length == 0 %}
+  No delivered parcels in the current retention window.
+  {% else %}
+  {% for p in rows %}
+  **{{ loop.index }}. Parcel: {{ p.tracking_code }}**
+  - Sender: {{ p.sender }}
+  - Status: {{ p.status_localized or p.status }}
+  - Delivered: {{ p.delivered_day_label or 'recently' }} at {{ p.delivered_at_hhmm or as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Delivery location: {{ p.delivery_location or 'no data' }}
+
+  {% endfor %}
+  {% endif %}

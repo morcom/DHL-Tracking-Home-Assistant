@@ -1,0 +1,65 @@
+# Lovelace card examples (Polish default)
+# Language-specific versions:
+# - lovelace-card-example-pl.yaml
+# - lovelace-card-example-en.yaml
+# - lovelace-card-example-nl.yaml
+
+# 1) Karta podsumowania (zawsze stale encje)
+type: entities
+title: DHL Parcels
+entities:
+  - entity: sensor.dhl_parcel_count
+    name: Liczba paczek
+  - entity: sensor.dhl_tracking_details
+    name: Tracking i nadawcy
+  - entity: sensor.dhl_delivered_details
+    name: Szczegóły doręczonych
+  - entity: sensor.dhl_parcel_voice_summary
+    name: Podsumowanie głosowe
+  - entity: sensor.dhl_parcel_delivered_summary
+    name: Podsumowanie doręczonych
+
+# 2) Karta markdown z listą WSZYSTKICH paczek (dynamiczna)
+---
+type: markdown
+title: DHL - Szczegóły paczek
+content: |
+  {% set rows = state_attr('sensor.dhl_tracking_details', 'tracking_details') or [] %}
+  {% if rows | length == 0 %}
+  Brak aktywnych paczek DHL.
+  {% else %}
+  {% for p in rows %}
+  **{{ loop.index }}. Paczka: {{ p.tracking_code }}**
+  - Nadawca: {{ p.sender or 'Nieznany nadawca' }}
+  - Status: {{ p.status_localized or p.status or 'unknown' }}
+  {% if p.delivery_time_from and p.delivery_time_to %}
+  - Przewidywane doręczenie: {{ p.delivery_day_label_localized or p.delivery_day_label or 'wkrótce' }}, {{ p.delivery_time_from_hhmm or as_datetime(p.delivery_time_from).strftime('%H:%M') }} - {{ p.delivery_time_to_hhmm or as_datetime(p.delivery_time_to).strftime('%H:%M') }}
+  {% else %}
+  - Termin doręczenia: brak danych
+  {% endif %}
+  {% if p.tracking_code %}
+  - [Śledź online](https://www.dhlparcel.nl/nl/volg-uw-zending-0?tt={{ p.tracking_code }})
+  {% endif %}
+
+  {% endfor %}
+  {% endif %}
+
+---
+
+# 3) Karta markdown: ostatnio doręczone paczki (ostatnie X dni retencji)
+type: markdown
+title: DHL - Ostatnio doręczone
+content: |
+  {% set rows = state_attr('sensor.dhl_delivered_details', 'delivered_details') or [] %}
+  {% if rows | length == 0 %}
+  Brak doręczonych paczek w aktualnym oknie retencji.
+  {% else %}
+  {% for p in rows %}
+  **{{ loop.index }}. Paczka: {{ p.tracking_code }}**
+  - Nadawca: {{ p.sender }}
+  - Status: {{ p.status_localized or p.status }}
+  - Doręczona: {{ p.delivered_day_label or 'niedawno' }} o {{ p.delivered_at_hhmm or as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Lokalizacja: {{ p.delivery_location or 'brak danych' }}
+
+  {% endfor %}
+  {% endif %}

@@ -1,0 +1,3 @@
+dhl_parcel_refresh:
+  name: Refresh parcels
+  description: Force an immediate refresh of DHL parcel data for all configured DHL Parcel Netherlands entries.

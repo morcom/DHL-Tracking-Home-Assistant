@@ -1,0 +1,338 @@
+# DHL Parcel Netherlands (Home Assistant custom integration)
+
+## 1.7.8 Update Notes
+
+Recent changes from `1.7.4` to `1.7.8`:
+
+- `1.7.5`
+  - Consumer parcel requests aligned with My DHL web app flow.
+  - Added `tab=incoming` for consumer parcel listing.
+  - Added consumer XSRF header support (`x-xsrf-token`) from session cookies.
+  - Added one-time re-authentication + retry on consumer `401` for parcel listing.
+
+- `1.7.6`
+  - Hardened unload flow for partial/failed platform load states.
+
+- `1.7.7`
+  - Switched options reload path to Home Assistant managed reload (`async_reload`) to avoid manual unload/setup race conditions.
+
+- `1.7.8`
+  - Added `services.yaml` metadata for `dhl_parcel_refresh` to remove HA warning about missing service definitions.
+
+Please review the example automations/cards and expose at least summary entities to Assist/LLM:
+- DHL Delivered Details
+- DHL Parcel Delivered Summary
+- DHL Parcel Voice Summary
+- DHL Tracking Details
+
+***Author: Michal Borkowski (ma@borkowski.nl)***
+
+*License: GNU GPL v3 or later (see `LICENSE`)*
+
+This integration tracks DHL parcels for consumer and business accounts,
+creates dynamic parcel sensors, emits automation events, and exposes
+voice-assistant friendly summary entities. If you use AI Voice Assistant then 
+just expose dhl_tracking_details or voice summary - and ask - do you have any
+DHL Packages for me? It would provide details. Automatically.
+
+You have as well automation examples - as we need to get variables. So - those
+are to guide you.
+
+## How it works
+
+- on consumer account, it is login to `my.dhlecommerce.nl`, list all packages 
+(using your username) and password
+- then - it is using DHL API *track-trace* to get package details
+
+- on business account, it is using DHL API Gateway to get package 
+details - using API key and user ID
+
+## Account modes
+
+### 1) Consumer account (`my.dhlecommerce.nl` / My DHL app)
+
+Required:
+- `email`
+- `password`
+
+Not required:
+- `user_id`
+- `api_key`
+
+### 2) Business account (DHL API Gateway)
+
+Required:
+- `user_id`
+- `api_key`
+
+Not required:
+- `email`
+- `password`
+
+Do not fill all fields. Choose one account type and provide only that credential pair.
+
+## Business API requirements (DHL)
+
+For business mode, use **both** DHL systems correctly:
+
+- `developer.dhl.com` -> API catalog, product onboarding, access status
+- `my.dhlecommerce.nl` (My DHL Portal) -> generate the actual `userId` + `key`
+
+For DHL Parcel NL API auth used by this integration, credentials are created in My DHL Portal:
+
+1. Log in to `https://my.dhlecommerce.nl` with your business account.
+2. Go to `Settings -> API Keys`.
+3. Create an API key and copy:
+   - `userId`
+   - `key`
+4. Use those values in integration config (`user_id`, `api_key`).
+
+If you do not see the API Keys page, your account likely misses API permissions/role.
+Ask DHL support/account manager to enable API Gateway access for your business account.
+
+Relevant DHL docs:
+- Developer portal (entry point): `https://developer.dhl.com/`
+- Authentication: `https://api-gw.dhlparcel.nl/docs/guide/chapters/1-authentication-and-authorization.html`
+- Track & Trace: `https://api-gw.dhlparcel.nl/docs/guide/chapters/05-track-and-trace.html`
+- API overview: `https://api-gw.dhlparcel.nl/docs/`
+
+Important distinction:
+- `developer.dhl.com` is DHL's global API portal and catalog.
+- This integration uses DHL Parcel NL / My DHL Portal APIs (`api-gw.dhlparcel.nl`), which are the relevant endpoints for NL business accounts.
+
+### Which APIs must be enabled for this integration
+
+For this add-on in **business mode**, you need access to DHL Parcel NL APIs via My DHL Portal credentials:
+
+Mandatory for this integration:
+- `Authentication and Authorization` (`/authenticate/api-key`, `/authenticate/refresh-token`)
+- `Track and Trace` (`/track-trace`)
+- `Shipments` (`/shipments`) for automatic parcel discovery
+
+How to enable (business user):
+1. Log in to `https://my.dhlecommerce.nl`.
+2. Go to `Settings -> API Keys`.
+3. Create API key and copy `userId` + `key`.
+4. Ensure your business account has shipment/tracking access for your organization.
+
+Optional, not used directly by this integration:
+- `Track and Trace Pusher` (webhook push model): configured in `Settings -> Integrations`.
+- `Shipment Tracking - Unified` on `developer.dhl.com` (`api-eu.dhl.com/track/shipments`).
+
+Important:
+- This integration does **not** call the Unified Tracking API endpoint (`api-eu.dhl.com/track/shipments`).
+- If you only enabled Unified Tracking on `developer.dhl.com` but did not create My DHL Portal API keys, business mode in this integration will not authenticate.
+
+### What must be provided in HA for business mode
+
+In integration configuration:
+- `account_type = business`
+- `user_id` (from My DHL Portal API Keys)
+- `api_key` (from My DHL Portal API Keys)
+
+Optional fields:
+- `postal_code` (can improve details for some track-trace responses)
+- `refresh_interval_minutes`
+- `refresh_start_time` and `refresh_end_time`
+- `delivered_keep_days`
+- `summary_language` (`en`, `pl`, `nl`) for voice summary output
+
+Notes:
+- Integration uses `authenticate/api-key` and `authenticate/refresh-token` for business token lifecycle.
+- Parcel details are read from Track & Trace (`/track-trace`) and account shipment listing (`/shipments`).
+
+## Consumer credential storage (at-rest obfuscation)
+
+For consumer mode, email/password can be stored obfuscated in config entry data
+(`email_encrypted` / `password_encrypted`). On startup, the integration decrypts
+them in memory before API login.
+
+Important:
+- This is local at-rest obfuscation (defense-in-depth), not enterprise-grade key management.
+- Runtime values still exist in memory while integration is active.
+- For maximum security, prefer business mode with API keys and secure your HA host/backups.
+
+## Supported data fields
+
+Per parcel sensor (`sensor.dhl_parcel_<tracking>`):
+- tracking code / barcode
+- status and raw status category
+- sender + shipper name
+- delivery date and timeframe
+- delivery_time_from / delivery_time_to
+- delivery_day_label (`today`, `tomorrow`, `in two days`, or date)
+- delivered_at timestamp
+- event history and latest event
+- delivery_location (when available from DHL events)
+
+Summary sensors:
+- `sensor.dhl_parcel_count`
+- `sensor.dhl_tracking_details`
+- `sensor.dhl_delivered_details`
+- `sensor.dhl_parcel_voice_summary`
+- `sensor.dhl_parcel_delivered_summary`
+
+Voice summary sensor provides structured `parcels` list for assistants:
+- sender
+- status (`status`) and translated labels (`status_en`, `status_pl`, `status_nl`)
+- time window
+- delivered time
+- tracking code and mapped entity_id
+
+`sensor.dhl_parcel_voice_summary` includes:
+- `voice_summary` (localized by `summary_language`)
+- `voice_summary_en`
+- `voice_summary_pl`
+- `voice_summary_nl`
+
+The summary text includes per-package details:
+- package index
+- sender/shipper name
+- current status
+- expected delivery day + time window when available
+- delivered time when already delivered
+
+`sensor.dhl_tracking_details` includes a per-tracking matrix for assistants:
+- `dhl_tracking_numbers` (comma-separated `tracking|sender`)
+- `dhl_tracking_numbers_extended` (comma-separated `tracking|sender|status|day|window`)
+- `tracking_details` (list of dicts per tracking code)
+- `tracking_by_number` (object keyed by tracking code)
+
+`sensor.dhl_delivered_details` includes a delivered-only matrix:
+- `dhl_delivered_numbers` (comma-separated `tracking|sender|delivered_day|delivered_time`)
+- `dhl_delivered_numbers_extended` (comma-separated `tracking|sender|status|delivered_day|delivered_time|delivery_location`)
+- `delivered_tracking_numbers`
+- `delivered_details` (list sorted newest first)
+- `delivered_by_number` (object keyed by tracking code)
+
+Status mapping covers DHL Track & Trace categories such as:
+- `DATA_RECEIVED`
+- `UNDERWAY`
+- `IN_DELIVERY`
+- `DELIVERED`
+- `CUSTOMS`
+- `INTERVENTION`
+- `PROBLEM`
+- `UNKNOWN`
+
+## Refresh and quiet hours
+
+Configurable in integration options:
+- `refresh_interval_minutes` (default 5)
+- `refresh_start_time` (default `06:00`)
+- `refresh_end_time` (default `23:00`)
+
+Outside refresh window, polling is skipped.
+
+## Events for automations
+
+- `dhl_parcel_discovered`
+- `dhl_parcel_status_changed`
+- `dhl_parcel_substatus_changed`
+- `dhl_parcel_delivery_window_changed`
+- `dhl_parcel_updated`
+- `dhl_parcel_removed`
+
+Event payload localization:
+- each major event includes `language` and `status_localized`
+- status change events include `old_status_localized` and `new_status_localized`
+- this uses integration option `summary_language` (`en`, `pl`, `nl`)
+
+Delivered-event fields:
+- `delivered_at`
+- `delivery_location` (human-readable place/address when available; GPS only as fallback)
+
+Reverse-geocoding for delivery location:
+- preferred free source: OpenStreetMap Nominatim
+- fallback free source: BigDataCloud reverse-geocode-client
+- result is cached in memory and used to replace raw GPS in summaries/events when possible
+
+Entity cleanup behavior:
+- parcels removed from DHL account are automatically removed from active tracking
+- delivered parcels remain visible until `delivered_keep_days` expires
+- stale/unavailable parcel entities are removed from registry automatically
+
+## Business automation examples
+
+### A) Status changed (business account)
+
+Use event entity trigger in HA 2026:
+
+```yaml
+alias: DHL Business - Status Changed
+triggers:
+  - trigger: event.received
+    entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
+    event_type: dhl_parcel_status_changed
+actions:
+  - variables:
+      attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+      sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or 'unknown sender' }}"
+      tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
+      new_status: "{{ attrs.get('new_status_localized') or attrs.get('new_status', 'unknown') }}"
+  - action: notify.notify
+    data:
+      message: "Business parcel {{ tracking }} from {{ sender }} changed to {{ new_status }}."
+```
+
+### B) Delivery window announced (business account)
+
+```yaml
+alias: DHL Business - Delivery Window
+triggers:
+  - trigger: event.received
+    entity_id: event.dhl_parcel_netherlands_dhl_parcel_delivery_window_changed
+    event_type: dhl_parcel_delivery_window_changed
+actions:
+  - variables:
+      attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
+      tf_raw: "{{ attrs.get('new_delivery_timeframe') or attrs.get('data', {}).get('delivery_timeframe') }}"
+      tf_from: "{{ tf_raw.split('/')[0] if tf_raw is string and '/' in tf_raw else None }}"
+      tf_to: "{{ tf_raw.split('/')[1] if tf_raw is string and '/' in tf_raw else None }}"
+  - action: notify.notify
+    data:
+      message: >
+        Delivery window: {{ as_datetime(tf_from).strftime('%H:%M') if tf_from else 'unknown' }} -
+        {{ as_datetime(tf_to).strftime('%H:%M') if tf_to else 'unknown' }}
+```
+
+## Voice assistant usage
+
+Expose at least these entities to Assist/LLM:
+- `sensor.dhl_parcel_voice_summary`
+- `sensor.dhl_parcel_count`
+- `sensor.dhl_tracking_details`
+
+Optional:
+- selected dynamic parcel sensors (`sensor.dhl_parcel_<tracking>`)
+
+For Polish voice assistants, `sensor.dhl_parcel_voice_summary` includes `voice_summary_pl`.
+For Dutch voice assistants, `sensor.dhl_parcel_voice_summary` includes `voice_summary_nl`.
+
+## Example files (up-to-date)
+
+Automation examples:
+- `automation-examples-pl.yaml`
+- `automation-examples-en.yaml`
+- `automation-examples-nl.yaml`
+
+Lovelace card examples:
+- `lovelace-card-example-pl.yaml`
+- `lovelace-card-example-en.yaml`
+- `lovelace-card-example-nl.yaml`
+
+Default aliases/legacy files:
+- `automation-examples.yaml` (Polish default)
+- `lovelace-card-example.yaml` (Polish default)
+
+## Notes
+
+- Consumer endpoints are unofficial/private and may change.
+- Business endpoints are documented and should be preferred for long-term stability.
+
+## Security
+
+Please read `SECURITY.md` for the vulnerability disclosure process.
+
+- Do not report security issues in public GitHub issues.
+- Report privately to `ma@borkowski.nl` with subject prefix `[SECURITY]`.

@@ -1,0 +1,102 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DHL Parcel Netherlands",
+        "description": "Choose account type first. Consumer: email + password only. Business: user ID + API key.",
+        "data": {
+          "account_type": "Account type",
+          "email": "Email (private account, leave empty to keep)",
+          "password": "Password (private account, leave empty to keep)",
+          "user_id": "User ID (business account)",
+          "api_key": "API Key (business account)",
+          "postal_code": "Postal code (optional)",
+          "delivered_keep_days": "Keep delivered parcels (days)",
+          "refresh_interval_minutes": "Refresh interval in minutes",
+          "refresh_start_time": "Refresh start time (HH:MM)",
+          "refresh_end_time": "Refresh end time (HH:MM)",
+          "summary_language": "Voice summary language"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Provide valid credentials",
+      "invalid_auth_consumer": "Consumer account requires email and password",
+      "invalid_auth_business": "Business account requires user ID and API key"
+    },
+    "abort": {
+      "already_configured": "Integration is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "DHL Parcel NL options",
+        "data": {
+          "account_type": "Account type",
+          "email": "Email (private account, leave empty to keep)",
+          "password": "Password (private account, leave empty to keep)",
+          "user_id": "User ID (business account)",
+          "api_key": "API Key (business account)",
+          "postal_code": "Postal code (optional)",
+          "tracking_codes": "Manual tracking codes (optional, comma separated)",
+          "delivered_keep_days": "Keep delivered parcels (days)",
+          "refresh_interval_minutes": "Refresh interval in minutes",
+          "refresh_start_time": "Refresh start time (HH:MM)",
+          "refresh_end_time": "Refresh end time (HH:MM)",
+          "summary_language": "Voice summary language"
+        }
+      }
+    }
+  },
+  "services": {
+    "dhl_parcel_refresh": {
+      "name": "Refresh DHL parcels",
+      "description": "Force immediate DHL parcel sync"
+    }
+  },
+  "entity": {
+    "event": {
+      "parcel_discovered": {
+        "name": "DHL Parcel Discovered"
+      },
+      "parcel_status_changed": {
+        "name": "DHL Parcel Status Changed"
+      },
+      "parcel_delivery_window_changed": {
+        "name": "DHL Parcel Delivery Window Changed"
+      },
+      "parcel_substatus_changed": {
+        "name": "DHL Parcel Substatus Changed"
+      },
+      "parcel_removed": {
+        "name": "DHL Parcel Removed"
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "new_parcel": "New parcel detected",
+      "status_changed": "Parcel status changed",
+      "delivery_window_changed": "Delivery window changed",
+      "substatus_changed": "Parcel substatus changed",
+      "parcel_removed": "Parcel removed after retention"
+    }
+  },
+  "selector": {
+    "account_type": {
+      "options": {
+        "consumer": "Consumer (email/password)",
+        "business": "Business (user ID/API key)"
+      }
+    },
+    "summary_language": {
+      "options": {
+        "en": "English",
+        "pl": "Polish",
+        "nl": "Dutch"
+      }
+    }
+  }
+}

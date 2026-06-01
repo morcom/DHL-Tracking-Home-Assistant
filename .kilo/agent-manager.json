@@ -1,0 +1,17 @@
+{
+  "worktrees": {
+    "wt-1776200034768-1": {
+      "branch": "valuable-slayer",
+      "path": "d:\\01_CODE\\DHL Tracking\\.kilo\\worktrees\\valuable-slayer",
+      "parentBranch": "dev",
+      "createdAt": "2026-04-14T20:53:54.768Z",
+      "remote": "origin"
+    }
+  },
+  "sessions": {
+    "ses_2723a557effez6Q10l24qrEvTV": {
+      "worktreeId": "wt-1776200034768-1",
+      "createdAt": "2026-04-14T20:53:55.918Z"
+    }
+  }
+}

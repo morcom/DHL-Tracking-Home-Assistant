@@ -1,0 +1,14 @@
+{
+  "domain": "dhl_parcel_nl",
+  "name": "DHL Parcel Netherlands",
+  "version": "1.7.2",
+  "config_flow": true,
+  "documentation": "https://github.com/morcom/DHL-Tracking-Home-Assistant",
+  "issue_tracker": "https://github.com/morcom/DHL-Tracking-Home-Assistant/issues",
+  "codeowners": ["@michalborkowski"],
+  "dependencies": [],
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "quality_scale": "silver",
+  "requirements": []
+}
