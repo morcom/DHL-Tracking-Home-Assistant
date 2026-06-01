@@ -5,7 +5,7 @@
   "config_flow": true,
   "documentation": "https://github.com/morcom/DHL-Tracking-Home-Assistant",
   "issue_tracker": "https://github.com/morcom/DHL-Tracking-Home-Assistant/issues",
-  "codeowners": ["@michalborkowski"],
+  "codeowners": ["@morcom"],
   "dependencies": [],
   "integration_type": "service",
   "iot_class": "cloud_polling",
