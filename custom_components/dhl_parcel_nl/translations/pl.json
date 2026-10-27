@@ -2,44 +2,98 @@
   "config": {
     "step": {
       "user": {
-        "title": "DHL Parcel Netherlands",
-        "description": "Najpierw wybierz typ konta. Konsumenckie: e-mail + hasło. Biznesowe: user ID + API key.",
+        "title": "Parcel Tracking NL (DHL, PostNL, Dragonfly)",
+        "description": "Konto DHL: Konsumenckie = e-mail + hasło, Biznesowe = user ID + API key, Brak = bez konta DHL (tylko PostNL/Dragonfly/kody ręczne). Logowanie do PostNL i Amazon.nl ustawisz później w opcjach.",
         "data": {
-          "account_type": "Typ konta",
-          "email": "E-mail (konto prywatne, puste = bez zmian)",
-          "password": "Hasło (konto prywatne, puste = bez zmian)",
-          "user_id": "User ID (konto biznesowe)",
-          "api_key": "API Key (konto biznesowe)",
-          "postal_code": "Kod pocztowy (opcjonalnie)",
+          "account_type": "Typ konta DHL",
+          "email": "E-mail DHL (konto konsumenckie)",
+          "password": "Hasło DHL (konto konsumenckie)",
+          "user_id": "User ID DHL (konto biznesowe)",
+          "api_key": "API key DHL (konto biznesowe)",
+          "postal_code": "Twój kod pocztowy (potrzebny do śledzenia PostNL)",
+          "enabled_carriers": "Przewoźnicy",
           "delivered_keep_days": "Przechowuj doręczone paczki (dni)",
           "refresh_interval_minutes": "Interwał odświeżania (minuty)",
           "refresh_start_time": "Start odświeżania (HH:MM)",
           "refresh_end_time": "Koniec odświeżania (HH:MM)",
           "summary_language": "Język podsumowania głosowego"
         }
+      },
+      "reauth_postnl": {
+        "title": "Logowanie do PostNL wygasło",
+        "description": "1. Otwórz ten link i zaloguj się do PostNL: {authorize_url}\n2. Po zalogowaniu przeglądarka spróbuje otworzyć adres `postnl://login?code=...` (może pokazać błąd). Skopiuj cały ten adres z paska adresu lub z narzędzi deweloperskich (karta Sieć) i wklej go poniżej.",
+        "data": {
+          "redirect_url": "Adres przekierowania (postnl://login?code=...)"
+        }
+      },
+      "reauth_amazon_password": {
+        "title": "Wymagane logowanie do Amazon.nl",
+        "description": "Amazon poprosił o ponowne logowanie (błędne hasło, captcha lub kod weryfikacyjny). Zaloguj się raz na amazon.nl w przeglądarce, a potem wpisz dane ponownie. Puste pola zachowują zapisane wartości.",
+        "data": {
+          "amazon_email": "E-mail Amazon",
+          "amazon_password": "Hasło Amazon",
+          "amazon_otp_secret": "Sekret TOTP weryfikacji dwuetapowej (opcjonalnie)"
+        }
+      },
+      "reauth_amazon_browser": {
+        "title": "Wymagane logowanie do Amazon.nl",
+        "description": "Logowanie do Amazon wygasło lub zostało cofnięte.\n1. Otwórz ten link i zaloguj się: {signin_url}\n2. Skopiuj cały adres strony błędu pokazanej po zalogowaniu (`{maplanding}...`) i wklej go poniżej.\n\nSklepy: {stores}. Strona logowania dla wszystkich sklepów europejskich jest na amazon.de (amazon.nl nie ma własnej); to to samo konto Amazon.",
+        "data": {
+          "amazon_redirect_url": "Adres strony Amazon po zalogowaniu"
+        }
+      },
+      "reauth_amazon_cookies": {
+        "title": "Ciasteczka amazon.nl wygasły",
+        "description": "amazon.nl nie przyjmuje już zapisanych ciasteczek. Zaloguj się na amazon.nl w przeglądarce, otwórz swoje zamówienia, skopiuj nagłówek żądania `Cookie` z narzędzi deweloperskich (F12 -> Sieć) i wklej go poniżej.",
+        "data": {
+          "amazon_cookies": "Nagłówki Cookie (jedna linia na sklep)"
+        }
+      },
+      "reauth_amazon_proxy": {
+        "title": "Wymagane logowanie do Amazon",
+        "description": "Otworzy się nowe okno ze stroną logowania Amazon, podawaną przez Home Assistant. Zaloguj się kontem Amazon (sklepy: {stores}); captcha i kody weryfikacyjne pojawią się tam jak zwykle. Po zalogowaniu okno się zamknie, a ten dialog przejdzie dalej sam. Nic nie trzeba kopiować.\n\nJeśli okno się nie otworzy, zezwól na wyskakujące okna dla Home Assistant."
       }
     },
     "error": {
       "cannot_connect": "Nie można połączyć",
+      "unknown": "Nieoczekiwany błąd",
       "invalid_auth": "Podaj poprawne dane logowania",
       "invalid_auth_consumer": "Konto konsumenckie wymaga e-mail i hasła",
-      "invalid_auth_business": "Konto biznesowe wymaga user ID i API key"
+      "invalid_auth_business": "Konto biznesowe wymaga user ID i API key",
+      "no_carrier": "Włącz co najmniej jednego przewoźnika",
+      "postnl_invalid_redirect": "Wklejony adres nie zawiera kodu logowania",
+      "postnl_auth": "PostNL odrzucił kod logowania. Otwórz link ponownie i wklej nowy adres",
+      "amazon_auth": "Logowanie do Amazon nie powiodło się albo Amazon poprosił o captcha lub kod weryfikacyjny",
+      "amazon_unavailable": "Nie udało się zainstalować biblioteki amazon-orders",
+      "amazon_credentials": "Podaj e-mail i hasło do Amazon",
+      "amazon_invalid_redirect": "Wklejony adres nie jest stroną Amazon pokazaną po zalogowaniu (musi zawierać /ap/maplanding i openid.oa2.authorization_code)",
+      "amazon_register_failed": "Amazon nie przyjął kodu logowania (mógł wygasnąć). Otwórz nowy link i zaloguj się ponownie",
+      "amazon_cookies_rejected": "Sklepy nie przyjęły logowania dla historii zamówień. Sprawdź wybrane sklepy albo spróbuj logowania ciasteczkami",
+      "amazon_cookies_invalid": "Wklejony tekst nie zawiera ciasteczka logowania (x-acbnl, x-acbde, ...) wybranych sklepów",
+      "amazon_mixed_regions": "Logowanie w przeglądarce działa dla sklepów europejskich albo dla amazon.com, nie dla obu naraz. Dla takiej kombinacji użyj logowania ciasteczkami"
     },
     "abort": {
-      "already_configured": "Integracja jest już skonfigurowana"
+      "already_configured": "Integracja jest już skonfigurowana",
+      "reauth_successful": "Logowanie zaktualizowane"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Opcje DHL Parcel NL",
+        "title": "Opcje Parcel Tracking NL",
+        "menu_options": {
+          "general": "Ogólne i przewoźnicy",
+          "dhl": "Konto DHL",
+          "postnl": "Konto PostNL",
+          "amazon": "Zamówienia Amazon (eksperymentalne)"
+        }
+      },
+      "general": {
+        "title": "Ogólne",
+        "description": "Kody ręczne: po przecinku. Użyj `przewoźnik:kod` (dhl, postnl, dragonfly) albo samego kodu, aby przewoźnik został rozpoznany automatycznie.",
         "data": {
-          "account_type": "Typ konta",
-          "email": "E-mail (konto prywatne, puste = bez zmian)",
-          "password": "Hasło (konto prywatne, puste = bez zmian)",
-          "user_id": "User ID (konto biznesowe)",
-          "api_key": "API Key (konto biznesowe)",
-          "postal_code": "Kod pocztowy (opcjonalnie)",
+          "enabled_carriers": "Przewoźnicy",
+          "postal_code": "Twój kod pocztowy (potrzebny do śledzenia PostNL)",
           "tracking_codes": "Ręczne kody śledzenia (opcjonalnie, po przecinku)",
           "delivered_keep_days": "Przechowuj doręczone paczki (dni)",
           "refresh_interval_minutes": "Interwał odświeżania (minuty)",
@@ -47,13 +101,136 @@
           "refresh_end_time": "Koniec odświeżania (HH:MM)",
           "summary_language": "Język podsumowania głosowego"
         }
+      },
+      "dhl": {
+        "title": "Konto DHL",
+        "data": {
+          "account_type": "Typ konta DHL",
+          "email": "E-mail (konto prywatne, puste = bez zmian)",
+          "password": "Hasło (konto prywatne, puste = bez zmian)",
+          "user_id": "User ID (konto biznesowe)",
+          "api_key": "API key (konto biznesowe)"
+        }
+      },
+      "postnl": {
+        "title": "Konto PostNL",
+        "description": "Stan: {status}.\nSynchronizacja konta korzysta z nieoficjalnego logowania aplikacji PostNL i może przestać działać, jeśli PostNL je zmieni.\n1. Otwórz ten link i zaloguj się do PostNL: {authorize_url}\n2. Po zalogowaniu przeglądarka spróbuje otworzyć adres `postnl://login?code=...` (może pokazać błąd). Skopiuj cały ten adres z paska adresu lub z narzędzi deweloperskich (karta Sieć) i wklej go poniżej. Zostaw puste, aby zachować obecne logowanie.",
+        "data": {
+          "redirect_url": "Adres przekierowania (postnl://login?code=...)",
+          "postnl_logout": "Wyloguj z PostNL"
+        }
+      },
+      "amazon": {
+        "title": "Zamówienia Amazon (eksperymentalne)",
+        "description": "Automatycznie dodaje nowe przesyłki DHL, PostNL i Dragonfly z zamówień Amazon. Zamówienia są widoczne tylko w sklepie, w którym je złożono, więc zaznacz każdy sklep, w którym kupujesz (amazon.nl, amazon.de, amazon.fr, amazon.es, ...); każdy jest czytany osobno.\n\nUwaga: warunki korzystania z Amazon zabraniają automatycznego dostępu. Amazon może wymagać captcha lub ograniczyć konto. Używasz na własne ryzyko. Zamówienia są sprawdzane co 30–60 minut, tylko w oknie odświeżania.\n\nLogowanie w przeglądarce (zalecane): logujesz się w Amazon samodzielnie (captcha i kody weryfikacyjne obsługujesz w przeglądarce); Home Assistant przechowuje tylko token logowania, bez hasła. Logowanie hasłem: używa e-maila i hasła; zatrzymuje się, gdy Amazon poprosi o captcha.\n\nLogowanie ciasteczkami: kopiujesz ciasteczka swojej zalogowanej sesji amazon.nl z przeglądarki; najpewniejsza metoda, gdy logowanie w przeglądarce nie działa.",
+        "data": {
+          "amazon_enabled": "Włącz zamówienia Amazon.nl",
+          "amazon_login_method": "Sposób logowania",
+          "amazon_poll_minutes": "Sprawdzaj zamówienia co (minuty)",
+          "amazon_stores": "Sklepy Amazon, z których czytać zamówienia"
+        }
+      },
+      "amazon_browser": {
+        "title": "Logowanie do Amazon - wklej adres",
+        "description": "Stan: {status}.\n1. Otwórz ten link i zaloguj się kontem Amazon (tym samym co na amazon.nl): {signin_url}\n2. Po zalogowaniu Amazon pokaże stronę błędu („nie znaleziono strony”). Tak ma być.\n3. Skopiuj cały adres tej strony z paska adresu (zaczyna się od `{maplanding}` i zawiera `openid.oa2.authorization_code`) i wklej go poniżej w ciągu kilku minut.\n\nDo konta Amazon zostanie dodane urządzenie „Parcel Tracking NL” (Twoje urządzenia). Usuń je tam, aby cofnąć logowanie. Zostaw puste, aby zachować obecne logowanie.\n\nSklepy: {stores}. Strona logowania dla wszystkich sklepów europejskich jest na amazon.de (amazon.nl nie ma własnej); to to samo konto Amazon.",
+        "data": {
+          "amazon_redirect_url": "Adres strony Amazon po zalogowaniu"
+        }
+      },
+      "amazon_password": {
+        "title": "Logowanie do Amazon hasłem",
+        "description": "Puste pola zachowują zapisane wartości. Integracja nigdy nie rozwiązuje captcha: zatrzymuje się i prosi o ponowne logowanie.",
+        "data": {
+          "amazon_email": "E-mail Amazon",
+          "amazon_password": "Hasło Amazon",
+          "amazon_otp_secret": "Sekret TOTP weryfikacji dwuetapowej (opcjonalnie)"
+        }
+      },
+      "amazon_cookies": {
+        "title": "Ciasteczka Amazon z przeglądarki",
+        "description": "Stan: {status}. Sklepy: {stores}.\n1. Zaloguj się w każdym sklepie w przeglądarce (zaznacz „Nie wylogowuj mnie”) i otwórz {orders_url}.\n2. Otwórz narzędzia deweloperskie (F12) -> Sieć, odśwież stronę, kliknij pierwsze żądanie (orders) i skopiuj wartość nagłówka żądania `Cookie`.\n3. Wklej ją poniżej, jedna linia na sklep. Sklep jest rozpoznawany po ciasteczku logowania (`x-acbnl`, `x-acbde`, `x-acbfr`, `x-acbes`, ...).\n\nCiasteczka są zapisywane w formie zaciemnionej i służą tylko do odczytu zamówień. Gdy Amazon zakończy sesję, Home Assistant poprosi o nowe ciasteczka. Zostaw puste, aby zachować obecne ciasteczka.",
+        "data": {
+          "amazon_cookies": "Nagłówki Cookie (jedna linia na sklep)"
+        }
+      },
+      "amazon_proxy": {
+        "title": "Zaloguj się do Amazon",
+        "description": "Otworzy się nowe okno ze stroną logowania Amazon, podawaną przez Home Assistant. Zaloguj się kontem Amazon (sklepy: {stores}); captcha i kody weryfikacyjne pojawią się tam jak zwykle. Po zalogowaniu okno się zamknie, a ten dialog przejdzie dalej sam. Nic nie trzeba kopiować.\n\nJeśli okno się nie otworzy, zezwól na wyskakujące okna dla Home Assistant."
       }
+    },
+    "error": {
+      "cannot_connect": "Nie można połączyć",
+      "unknown": "Nieoczekiwany błąd",
+      "no_carrier": "Włącz co najmniej jednego przewoźnika",
+      "postnl_invalid_redirect": "Wklejony adres nie zawiera kodu logowania",
+      "postnl_auth": "PostNL odrzucił kod logowania. Otwórz link ponownie i wklej nowy adres",
+      "amazon_auth": "Logowanie do Amazon nie powiodło się albo Amazon poprosił o captcha lub kod weryfikacyjny",
+      "amazon_unavailable": "Nie udało się zainstalować biblioteki amazon-orders",
+      "amazon_credentials": "Podaj e-mail i hasło do Amazon",
+      "amazon_invalid_redirect": "Wklejony adres nie jest stroną Amazon pokazaną po zalogowaniu (musi zawierać /ap/maplanding i openid.oa2.authorization_code)",
+      "amazon_register_failed": "Amazon nie przyjął kodu logowania (mógł wygasnąć). Otwórz nowy link i zaloguj się ponownie",
+      "amazon_cookies_rejected": "Sklepy nie przyjęły logowania dla historii zamówień. Sprawdź wybrane sklepy albo spróbuj logowania ciasteczkami",
+      "amazon_cookies_invalid": "Wklejony tekst nie zawiera ciasteczka logowania (x-acbnl, x-acbde, ...) wybranych sklepów",
+      "amazon_mixed_regions": "Logowanie w przeglądarce działa dla sklepów europejskich albo dla amazon.com, nie dla obu naraz. Dla takiej kombinacji użyj logowania ciasteczkami"
+    }
+  },
+  "issues": {
+    "postnl_postal_code_missing": {
+      "title": "PostNL potrzebuje kodu pocztowego",
+      "description": "Śledzenie PostNL wymaga kodu pocztowego odbiorcy. Dodaj go w opcjach integracji (Ogólne) albo użyj akcji track_parcel z polem `postal_code`. Do tego czasu paczki PostNL są pomijane."
+    },
+    "amazon_auth_required": {
+      "title": "Wymagane logowanie do Amazon.nl",
+      "description": "Amazon poprosił o ponowne logowanie, captcha lub kod weryfikacyjny. Sprawdzanie zamówień Amazon jest wstrzymane; śledzenie DHL, PostNL i Dragonfly działa dalej. Skonfiguruj integrację ponownie, aby się zalogować."
+    },
+    "amazon_unavailable": {
+      "title": "Zamówienia Amazon.nl niedostępne",
+      "description": "Nie udało się zainstalować lub załadować biblioteki amazon-orders, więc zamówienia Amazon.nl nie są sprawdzane. Śledzenie przesyłek działa dalej."
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Parcel Tracking NL nie jest załadowana"
+    },
+    "carrier_disabled": {
+      "message": "Nie można śledzić tej paczki: {error}"
+    },
+    "not_tracked": {
+      "message": "Paczka {tracking_code} nie jest śledzona"
     }
   },
   "services": {
     "dhl_parcel_refresh": {
-      "name": "Odśwież paczki DHL",
-      "description": "Wymuś natychmiastowe odświeżenie paczek DHL"
+      "name": "Odśwież paczki",
+      "description": "Wymuś natychmiastowe odświeżenie wszystkich śledzonych paczek (i zamówień Amazon.nl, jeśli są włączone)."
+    },
+    "track_parcel": {
+      "name": "Śledź paczkę",
+      "description": "Zacznij śledzić paczkę DHL, PostNL lub Dragonfly.",
+      "fields": {
+        "tracking_code": {
+          "name": "Kod śledzenia",
+          "description": "Kod śledzenia paczki."
+        },
+        "carrier": {
+          "name": "Przewoźnik",
+          "description": "Przewoźnik paczki albo auto, aby rozpoznać go po kodzie."
+        },
+        "postal_code": {
+          "name": "Kod pocztowy",
+          "description": "Kod pocztowy odbiorcy (potrzebny dla PostNL, jeśli nie jest skonfigurowany)."
+        }
+      }
+    },
+    "untrack_parcel": {
+      "name": "Przestań śledzić paczkę",
+      "description": "Przestań śledzić paczkę. Synchronizacja konta i Amazon nie dodadzą jej ponownie.",
+      "fields": {
+        "tracking_code": {
+          "name": "Kod śledzenia",
+          "description": "Kod śledzenia paczki."
+        }
+      }
     }
   },
   "entity": {
@@ -81,14 +258,15 @@
       "status_changed": "Zmienił się status paczki",
       "delivery_window_changed": "Zmieniło się okno doręczenia",
       "substatus_changed": "Zmienił się podstatus paczki",
-      "parcel_removed": "Usunięto paczkę po okresie retencji"
+      "parcel_removed": "Usunięto paczkę"
     }
   },
   "selector": {
     "account_type": {
       "options": {
         "consumer": "Konsumenckie (e-mail/hasło)",
-        "business": "Biznesowe (user ID/API key)"
+        "business": "Biznesowe (user ID/API key)",
+        "none": "Bez konta DHL"
       }
     },
     "summary_language": {
@@ -96,6 +274,22 @@
         "en": "Angielski",
         "pl": "Polski",
         "nl": "Niderlandzki"
+      }
+    },
+    "carrier": {
+      "options": {
+        "auto": "Rozpoznaj automatycznie",
+        "dhl": "DHL",
+        "postnl": "PostNL",
+        "dragonfly": "Dragonfly"
+      }
+    },
+    "amazon_login_method": {
+      "options": {
+        "browser": "Logowanie na Amazon przez Home Assistant (zalecane)",
+        "browser_paste": "Logowanie na Amazon, wklejenie adresu (zapasowe)",
+        "cookies": "Ciasteczka z przeglądarki",
+        "password": "E-mail i hasło"
       }
     }
   }

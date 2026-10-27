@@ -1,5 +1,21 @@
 # DHL Parcel NL automation examples (Home Assistant 2026) - English
 # Replace TTS/media entities with your own.
+#
+# Trigger syntax (event entities, Home Assistant 2026.x):
+#   - trigger: event.received
+#     target:
+#       entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
+#     options:
+#       event_type: dhl_parcel_status_changed
+# Event data is available in trigger.to_state.attributes.
+#
+# Version-independent alternative (classic event trigger):
+#   - trigger: event
+#     event_type: dhl_parcel_status_changed
+# Event data is then available in trigger.event.data.
+#
+# All events carry `carrier` (dhl, postnl, dragonfly); dhl_parcel_discovered also
+# carries `source` (account_sync, amazon, manual) and `order_id` for Amazon parcels.
 
 # A0) New parcel discovered
 - alias: "DHL - new parcel (EN)"
@@ -8,104 +24,157 @@
   max_exceeded: silent
   triggers:
     - trigger: event.received
-      entity_id: event.dhl_parcel_netherlands_dhl_parcel_discovered
-      event_type: dhl_parcel_discovered
+      target:
+        entity_id: event.dhl_parcel_netherlands_dhl_parcel_discovered
+      options:
+        event_type: dhl_parcel_discovered
   conditions:
     - condition: template
-      value_template: >
-        {{ (trigger.to_state.attributes.get('status') or trigger.to_state.attributes.get('data', {}).get('status_category') or '') != 'DELIVERED' }}
+      value_template: "{{ trigger.to_state.attributes.get('source') != 'amazon' }}"
+    - condition: template
+      value_template: "{{ trigger.to_state.attributes.get('status') != 'DELIVERED' }}"
   actions:
     - variables:
-        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
-        data: "{{ attrs.get('data', {}) }}"
-        sender: "{{ attrs.get('sender') or data.get('shipper_name') or data.get('sender_name') or 'unknown sender' }}"
-        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
-        status: "{{ attrs.get('status_localized') or attrs.get('status') or data.get('status_en') or data.get('status_category') or 'UNKNOWN' }}"
+        carrier: "{{ {'dhl': 'DHL', 'postnl': 'PostNL', 'dragonfly': 'Dragonfly'}.get(trigger.to_state.attributes.get('carrier'), 'DHL') }}"
+        sender: "{{ trigger.to_state.attributes.get('sender') or 'unknown sender' }}"
+        tracking: "{{ trigger.to_state.attributes.get('tracking_code', 'unknown') }}"
+        status: "{{ trigger.to_state.attributes.get('status_localized') or trigger.to_state.attributes.get('status') or 'unknown' }}"
     - action: tts.speak
       target:
         entity_id: tts.home_assistant_cloud
       data:
         cache: false
         media_player_entity_id: media_player.living_room
-        message: "New DHL parcel {{ tracking }} from {{ sender }}. Current status: {{ status }}."
+        message: "New {{ carrier }} parcel {{ tracking }} from {{ sender }}. Current status: {{ status }}."
 
-# A) Status changed
+# A) Status changed (DELIVERED is announced by automation C)
 - alias: "DHL - status changed (EN)"
   id: dhl_status_changed_en
   mode: queued
   max_exceeded: silent
   triggers:
     - trigger: event.received
-      entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
-      event_type: dhl_parcel_status_changed
+      target:
+        entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
+      options:
+        event_type: dhl_parcel_status_changed
+  conditions:
+    - condition: template
+      value_template: "{{ trigger.to_state.attributes.get('new_status') != 'DELIVERED' }}"
   actions:
     - variables:
-        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
-        sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or attrs.get('data', {}).get('sender_name') or 'unknown sender' }}"
-        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
-        new_status: "{{ attrs.get('new_status_localized') or attrs.get('new_status') or attrs.get('status_localized') or attrs.get('status') or 'unknown' }}"
+        carrier: "{{ {'dhl': 'DHL', 'postnl': 'PostNL', 'dragonfly': 'Dragonfly'}.get(trigger.to_state.attributes.get('carrier'), 'DHL') }}"
+        sender: "{{ trigger.to_state.attributes.get('sender') or 'unknown sender' }}"
+        tracking: "{{ trigger.to_state.attributes.get('tracking_code', 'unknown') }}"
+        new_status: "{{ trigger.to_state.attributes.get('new_status_localized') or trigger.to_state.attributes.get('new_status') or 'unknown' }}"
     - action: tts.speak
       target:
         entity_id: tts.home_assistant_cloud
       data:
         cache: false
         media_player_entity_id: media_player.living_room
-        message: "DHL parcel {{ tracking }} from {{ sender }} changed status to {{ new_status }}."
+        message: >-
+          {{ carrier }} parcel {{ tracking }} from {{ sender }} changed status to {{ new_status }}.
+          {% if trigger.to_state.attributes.get('new_status') == 'READY_FOR_PICKUP' and trigger.to_state.attributes.get('delivery_location') %}Pickup address: {{ trigger.to_state.attributes.get('delivery_location') }}.{% endif %}
 
-# B) Delivery window changed
+# B) Delivery window changed (times converted to the Home Assistant time zone)
 - alias: "DHL - delivery window (EN)"
   id: dhl_delivery_window_en
   mode: queued
   max_exceeded: silent
   triggers:
     - trigger: event.received
-      entity_id: event.dhl_parcel_netherlands_dhl_parcel_delivery_window_changed
-      event_type: dhl_parcel_delivery_window_changed
+      target:
+        entity_id: event.dhl_parcel_netherlands_dhl_parcel_delivery_window_changed
+      options:
+        event_type: dhl_parcel_delivery_window_changed
   actions:
     - variables:
-        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
-        sender: "{{ attrs.get('sender') or attrs.get('data', {}).get('shipper_name') or attrs.get('data', {}).get('sender_name') or 'unknown sender' }}"
-        tf_raw: "{{ attrs.get('new_delivery_timeframe') or attrs.get('data', {}).get('delivery_timeframe') }}"
-        tf_from_iso: >
-          {% if tf_raw is string and '/' in tf_raw %}{{ tf_raw.split('/')[0] }}{% elif tf_raw is mapping %}{{ tf_raw.get('from') }}{% else %}{{ None }}{% endif %}
-        tf_to_iso: >
-          {% if tf_raw is string and '/' in tf_raw %}{{ tf_raw.split('/')[1] }}{% elif tf_raw is mapping %}{{ tf_raw.get('to') }}{% else %}{{ None }}{% endif %}
-        from_time: "{{ as_datetime(tf_from_iso).strftime('%H:%M') if tf_from_iso else 'unknown' }}"
-        to_time: "{{ as_datetime(tf_to_iso).strftime('%H:%M') if tf_to_iso else 'unknown' }}"
+        carrier: "{{ {'dhl': 'DHL', 'postnl': 'PostNL', 'dragonfly': 'Dragonfly'}.get(trigger.to_state.attributes.get('carrier'), 'DHL') }}"
+        sender: "{{ trigger.to_state.attributes.get('sender') or 'unknown sender' }}"
+        tf_raw: "{{ trigger.to_state.attributes.get('new_delivery_timeframe') }}"
+        tf_from_iso: >-
+          {% if tf_raw is string and '/' in tf_raw %}{{ tf_raw.split('/')[0] }}{% elif tf_raw is mapping %}{{ tf_raw.get('from') or '' }}{% endif %}
+        tf_to_iso: >-
+          {% if tf_raw is string and '/' in tf_raw %}{{ tf_raw.split('/')[1] }}{% elif tf_raw is mapping %}{{ tf_raw.get('to') or '' }}{% endif %}
+        from_time: >-
+          {% set d = as_datetime(tf_from_iso, None) %}{{ (d | as_local).strftime('%H:%M') if d else 'unknown' }}
+        to_time: >-
+          {% set d = as_datetime(tf_to_iso, None) %}{{ (d | as_local).strftime('%H:%M') if d else 'unknown' }}
+        day_label: >-
+          {% set d = as_datetime(tf_from_iso, None) %}
+          {% if d %}
+            {% set diff = ((d | as_local).date() - now().date()).days %}
+            {% if diff == 0 %}today{% elif diff == 1 %}tomorrow{% elif diff == 2 %}the day after tomorrow{% else %}on {{ (d | as_local).strftime('%d.%m') }}{% endif %}
+          {% else %}soon{% endif %}
     - action: tts.speak
       target:
         entity_id: tts.home_assistant_cloud
       data:
         cache: false
         media_player_entity_id: media_player.living_room
-        message: "DHL parcel from {{ sender }} is expected between {{ from_time }} and {{ to_time }}."
+        message: "{{ carrier }} parcel from {{ sender }} is expected {{ day_label }} between {{ from_time }} and {{ to_time }}."
 
 # C) Delivered
+# Events are fired after the sensors are updated, so sensor.dhl_delivered_details
+# already contains the delivered parcel when this automation runs.
 - alias: "DHL - delivered (EN)"
   id: dhl_delivered_en
   mode: queued
   max_exceeded: silent
   triggers:
     - trigger: event.received
-      entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
-      event_type: dhl_parcel_status_changed
+      target:
+        entity_id: event.dhl_parcel_netherlands_dhl_parcel_status_changed
+      options:
+        event_type: dhl_parcel_status_changed
   conditions:
     - condition: template
-      value_template: "{{ (trigger.to_state.attributes.get('new_status') or '') == 'DELIVERED' }}"
+      value_template: "{{ trigger.to_state.attributes.get('new_status') == 'DELIVERED' }}"
   actions:
     - variables:
-        attrs: "{{ trigger.to_state.attributes if trigger is defined and trigger.to_state is defined and trigger.to_state else {} }}"
-        data: "{{ attrs.get('data', {}) }}"
-        sender: "{{ attrs.get('sender') or data.get('shipper_name') or data.get('sender_name') or 'unknown sender' }}"
-        tracking: "{{ attrs.get('tracking_code', 'unknown') }}"
-        delivered_at: "{{ data.get('delivered_at') }}"
-        delivery_location: "{{ attrs.get('delivery_location') or data.get('delivery_location') or 'unknown' }}"
-        delivered_day: "{{ state_attr('sensor.dhl_delivered_details', 'delivered_by_number').get(tracking, {}).get('delivered_day_label') if state_attr('sensor.dhl_delivered_details', 'delivered_by_number') else 'recently' }}"
-        delivered_time: "{{ as_datetime(delivered_at).strftime('%H:%M') if delivered_at else now().strftime('%H:%M') }}"
+        carrier: "{{ {'dhl': 'DHL', 'postnl': 'PostNL', 'dragonfly': 'Dragonfly'}.get(trigger.to_state.attributes.get('carrier'), 'DHL') }}"
+        sender: "{{ trigger.to_state.attributes.get('sender') or 'unknown sender' }}"
+        tracking: "{{ trigger.to_state.attributes.get('tracking_code', 'unknown') }}"
+        delivery_location: "{{ trigger.to_state.attributes.get('delivery_location') or 'unknown' }}"
+        details: "{{ (state_attr('sensor.dhl_delivered_details', 'delivered_by_number') or {}).get(tracking, {}) }}"
+        delivered_day: "{{ details.get('delivered_day_label') or 'recently' }}"
+        delivered_time: >-
+          {% set d = as_datetime(trigger.to_state.attributes.get('delivered_at') or '', None) %}{{ details.get('delivered_at_hhmm') or ((d | as_local).strftime('%H:%M') if d else '') }}
     - action: tts.speak
       target:
         entity_id: tts.home_assistant_cloud
       data:
         cache: false
         media_player_entity_id: media_player.living_room
-        message: "DHL parcel {{ tracking }} from {{ sender }} was delivered {{ delivered_day }} at {{ delivered_time }}. Delivery location: {{ delivery_location }}."
+        message: >-
+          {{ carrier }} parcel {{ tracking }} from {{ sender }} was delivered {{ delivered_day }}{% if delivered_time %} at {{ delivered_time }}{% endif %}.
+          Delivery location: {{ delivery_location }}.
+
+# A1) New parcel from an Amazon.nl order (experimental Amazon source)
+- alias: "DHL - new Amazon parcel (EN)"
+  id: dhl_amazon_parcel_en
+  mode: queued
+  max_exceeded: silent
+  triggers:
+    - trigger: event.received
+      target:
+        entity_id: event.dhl_parcel_netherlands_dhl_parcel_discovered
+      options:
+        event_type: dhl_parcel_discovered
+  conditions:
+    - condition: template
+      value_template: "{{ trigger.to_state.attributes.get('source') == 'amazon' }}"
+  actions:
+    - variables:
+        carrier: "{{ {'dhl': 'DHL', 'postnl': 'PostNL', 'dragonfly': 'Dragonfly'}.get(trigger.to_state.attributes.get('carrier'), 'DHL') }}"
+        tracking: "{{ trigger.to_state.attributes.get('tracking_code', 'unknown') }}"
+        order_id: "{{ trigger.to_state.attributes.get('order_id') or '' }}"
+        status: "{{ trigger.to_state.attributes.get('status_localized') or trigger.to_state.attributes.get('status') or 'unknown' }}"
+    - action: tts.speak
+      target:
+        entity_id: tts.home_assistant_cloud
+      data:
+        cache: false
+        media_player_entity_id: media_player.living_room
+        message: "New Amazon parcel {{ tracking }} delivered by {{ carrier }}{% if order_id %}, order {{ order_id }}{% endif %}. Current status: {{ status }}."

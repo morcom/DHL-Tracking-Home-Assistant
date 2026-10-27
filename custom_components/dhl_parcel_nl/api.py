@@ -11,7 +11,12 @@ from urllib.parse import urlencode
 import aiohttp
 from aiohttp import ClientError, ClientResponseError
 
-from .const import ACCOUNT_TYPE_BUSINESS, ACCOUNT_TYPE_CONSUMER
+from .const import (
+    ACCOUNT_TYPE_BUSINESS,
+    ACCOUNT_TYPE_CONSUMER,
+    PICKUP_WAITING_SUBSTATUSES,
+    STATUS_READY_FOR_PICKUP,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,14 +56,22 @@ class DHLParcelNLAPI:
         self.consumer_auth_fail_count: int = 0
         self.consumer_auth_block_until: datetime | None = None
         self._geocode_cache: dict[str, str | None] = {}
+        self._parcel_hints: dict[str, dict[str, str]] = {}
 
     async def get_tracking_info(
         self, tracking_code: str, postal_code: str | None = None
     ) -> dict[str, Any]:
-        """Get tracking information for a parcel."""
+        """Get tracking information for a parcel.
+
+        Without the receiver's postal code DHL returns only a reduced payload
+        (no sender, no addresses), so a postal code from the account parcel
+        list is used when none is configured.
+        """
+        hints = self._parcel_hints.get(tracking_code, {})
+        postal_code = (postal_code or hints.get("postal_code") or "").replace(" ", "")
         params = {"key": tracking_code}
         if postal_code:
-            params["key"] = f"{tracking_code}+{postal_code}"
+            params["key"] = f"{tracking_code}+{postal_code.upper()}"
 
         headers = {"Accept": "application/json"}
 
@@ -73,10 +86,15 @@ class DHLParcelNLAPI:
                 data = await response.json()
 
                 if isinstance(data, list) and len(data) > 0:
-                    return self._parse_tracking_response(data[0])
-                if isinstance(data, dict):
-                    return self._parse_tracking_response(data)
-                return {}
+                    parsed = self._parse_tracking_response(data[0])
+                elif isinstance(data, dict):
+                    parsed = self._parse_tracking_response(data)
+                else:
+                    return {}
+
+                if not parsed.get("sender_name") and hints.get("sender"):
+                    parsed["sender_name"] = hints["sender"]
+                return parsed
 
         except ClientResponseError as err:
             _LOGGER.error("API error fetching tracking %s: %s", tracking_code, err)
@@ -106,6 +124,15 @@ class DHLParcelNLAPI:
                     is_delivered = True
 
                 status_category = parsed_event["category"]
+
+        # DHL keeps category IN_DELIVERY while the parcel waits at a ParcelShop;
+        # expose a dedicated status so users are told to pick it up.
+        if (
+            not is_delivered
+            and events
+            and events[-1].get("status") in PICKUP_WAITING_SUBSTATUSES
+        ):
+            status_category = STATUS_READY_FOR_PICKUP
 
         if "plannedDeliveryDate" in data:
             delivery_date = data["plannedDeliveryDate"]
@@ -140,6 +167,11 @@ class DHLParcelNLAPI:
                     if not delivery_location:
                         delivery_location = self._extract_event_location(event)
                     break
+
+        if not delivery_location:
+            # ParcelShop deliveries: the shop address is only present in the
+            # ParcelShop-related events, not in the shipment destination.
+            delivery_location = self._extract_parcelshop_address(raw_events)
 
         if not delivery_location:
             delivery_location = self._extract_delivery_address(raw)
@@ -205,6 +237,45 @@ class DHLParcelNLAPI:
 
         return None
 
+    @staticmethod
+    def _format_address(addr: dict[str, Any]) -> str | None:
+        """Format a DHL address dict as 'Street 1A, 1234AB City'.
+
+        The country is added only for non-Dutch addresses, so voice output
+        does not read "NL" after every address.
+        """
+        number = "".join(
+            str(v)
+            for v in (
+                addr.get("houseNumber"),
+                addr.get("houseNumberSuffix") or addr.get("addition"),
+            )
+            if v
+        )
+        line1 = " ".join(str(v) for v in (addr.get("street"), number) if v)
+        line2 = " ".join(
+            str(v) for v in (addr.get("postalCode"), addr.get("city")) if v
+        )
+        country = addr.get("countryCode")
+        if country and str(country).upper() == "NL":
+            country = None
+        parts = [p for p in (line1, line2, country) if p]
+        return ", ".join(parts) if parts else None
+
+    def _extract_parcelshop_address(self, raw_events: list[Any]) -> str | None:
+        """Return the ParcelShop address from the latest ParcelShop event."""
+        for event in reversed(raw_events):
+            if not isinstance(event, dict):
+                continue
+            if "PARCELSHOP" not in str(event.get("status") or ""):
+                continue
+            addr = event.get("deliveryAddress")
+            if isinstance(addr, dict):
+                formatted = self._format_address(addr)
+                if formatted:
+                    return formatted
+        return None
+
     def _extract_delivery_address(self, raw: dict[str, Any]) -> str | None:
         """Build delivery address text from shipment payload."""
         candidates = [
@@ -222,18 +293,9 @@ class DHLParcelNLAPI:
         for addr in candidates:
             if not isinstance(addr, dict):
                 continue
-
-            street = addr.get("street")
-            house_number = addr.get("houseNumber")
-            postal_code = addr.get("postalCode")
-            city = addr.get("city")
-            country = addr.get("countryCode")
-
-            line1 = " ".join([str(v) for v in (street, house_number) if v])
-            line2 = " ".join([str(v) for v in (postal_code, city) if v])
-            parts = [p for p in (line1, line2, country) if p]
-            if parts:
-                return ", ".join(parts)
+            formatted = self._format_address(addr)
+            if formatted:
+                return formatted
 
         return None
 
@@ -437,6 +499,7 @@ class DHLParcelNLAPI:
             status = (parcel.get("status") or parcel.get("category") or "").upper()
             if tracker_code:
                 code = str(tracker_code)
+                self._store_parcel_hints(code, parcel)
                 if status == "DELIVERED":
                     delivered_codes.append(code)
                 else:
@@ -450,6 +513,28 @@ class DHLParcelNLAPI:
             len(delivered_codes),
         )
         return list(dict.fromkeys(tracking_codes))
+
+    def _store_parcel_hints(self, code: str, parcel: dict[str, Any]) -> None:
+        """Remember postal code and sender from the account parcel list.
+
+        Track & Trace returns sender and addresses only when the receiver's
+        postal code is part of the request, so it is taken from the account
+        list when the user did not configure one.
+        """
+        hints: dict[str, str] = {}
+        for party in ("receiver", "destination"):
+            block = parcel.get(party)
+            address = block.get("address") if isinstance(block, dict) else None
+            postal = address.get("postalCode") if isinstance(address, dict) else None
+            if postal:
+                hints["postal_code"] = str(postal).replace(" ", "").upper()
+                break
+        sender = parcel.get("sender")
+        sender_name = sender.get("name") if isinstance(sender, dict) else sender
+        if isinstance(sender_name, str) and sender_name.strip():
+            hints["sender"] = sender_name.strip()
+        if hints:
+            self._parcel_hints[code] = hints
 
     async def _fetch_consumer_parcels(self) -> dict[str, Any] | list[dict[str, Any]]:
         """Fetch consumer parcels payload from DHL portal API."""

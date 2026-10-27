@@ -1,7 +1,7 @@
 {
-  "name": "DHL Parcel Netherlands",
+  "name": "Parcel Tracking NL (DHL, PostNL, Dragonfly)",
   "country": "NL",
-  "homeassistant": "2026.1.0",
+  "homeassistant": "2026.10.0",
   "render_readme": true,
   "domains": [
     "sensor",

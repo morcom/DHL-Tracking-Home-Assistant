@@ -2,44 +2,98 @@
   "config": {
     "step": {
       "user": {
-        "title": "DHL Parcel Nederland",
-        "description": "Kies eerst het accounttype. Consument: e-mail + wachtwoord. Zakelijk: user ID + API key.",
+        "title": "Parcel Tracking NL (DHL, PostNL, Dragonfly)",
+        "description": "DHL-account: Consument = e-mail + wachtwoord, Zakelijk = user ID + API key, Geen = geen DHL-account (alleen PostNL/Dragonfly/handmatige codes). De PostNL-login en Amazon.nl stel je later in bij de opties.",
         "data": {
-          "account_type": "Accounttype",
-          "email": "E-mail (consumentenaccount, leeg = behouden)",
-          "password": "Wachtwoord (consumentenaccount, leeg = behouden)",
-          "user_id": "User ID (zakelijk account)",
-          "api_key": "API key (zakelijk account)",
-          "postal_code": "Postcode (optioneel)",
+          "account_type": "Type DHL-account",
+          "email": "DHL e-mail (consumentenaccount)",
+          "password": "DHL wachtwoord (consumentenaccount)",
+          "user_id": "DHL user ID (zakelijk account)",
+          "api_key": "DHL API key (zakelijk account)",
+          "postal_code": "Je postcode (nodig voor PostNL-tracking)",
+          "enabled_carriers": "Vervoerders",
           "delivered_keep_days": "Bezorgde pakketten bewaren (dagen)",
           "refresh_interval_minutes": "Verversingsinterval (minuten)",
           "refresh_start_time": "Start verversen (HH:MM)",
           "refresh_end_time": "Einde verversen (HH:MM)",
           "summary_language": "Taal voor stemsamenvatting"
         }
+      },
+      "reauth_postnl": {
+        "title": "PostNL-login verlopen",
+        "description": "1. Open deze link en log in bij PostNL: {authorize_url}\n2. Na het inloggen probeert de browser een `postnl://login?code=...` adres te openen (mogelijk met een foutmelding). Kopieer dat volledige adres uit de adresbalk of de ontwikkelaarstools (tabblad Netwerk) en plak het hieronder.",
+        "data": {
+          "redirect_url": "Doorverwijs-URL (postnl://login?code=...)"
+        }
+      },
+      "reauth_amazon_password": {
+        "title": "Amazon.nl-login nodig",
+        "description": "Amazon vroeg om opnieuw in te loggen (verkeerd wachtwoord, captcha of verificatiecode). Log één keer in op amazon.nl in een browser en vul daarna je gegevens opnieuw in. Lege velden behouden de opgeslagen waarde.",
+        "data": {
+          "amazon_email": "Amazon e-mail",
+          "amazon_password": "Amazon wachtwoord",
+          "amazon_otp_secret": "TOTP-geheim voor tweestapsverificatie (optioneel)"
+        }
+      },
+      "reauth_amazon_browser": {
+        "title": "Amazon.nl-login nodig",
+        "description": "De Amazon-login is verlopen of ingetrokken.\n1. Open deze link en log in: {signin_url}\n2. Kopieer het volledige adres van de foutpagina na het inloggen (`{maplanding}...`) en plak het hieronder.\n\nWinkels: {stores}. De inlogpagina voor alle Europese winkels staat op amazon.de (amazon.nl heeft geen eigen inlogpagina); het is hetzelfde Amazon-account.",
+        "data": {
+          "amazon_redirect_url": "Adres van de Amazon-pagina na het inloggen"
+        }
+      },
+      "reauth_amazon_cookies": {
+        "title": "Amazon.nl-cookies verlopen",
+        "description": "amazon.nl accepteert de opgeslagen cookies niet meer. Log in op amazon.nl in je browser, open je bestellingen, kopieer de verzoekheader `Cookie` uit de ontwikkelaarstools (F12 -> Netwerk) en plak die hieronder.",
+        "data": {
+          "amazon_cookies": "Cookie-headers (één regel per winkel)"
+        }
+      },
+      "reauth_amazon_proxy": {
+        "title": "Amazon-login nodig",
+        "description": "Er opent een nieuw venster met de Amazon-inlogpagina, via Home Assistant. Log in met je Amazon-account (winkels: {stores}); captcha's en verificatiecodes verschijnen daar zoals gewoonlijk. Na het inloggen sluit het venster en gaat dit dialoogvenster vanzelf verder. Niets te kopiëren.\n\nAls het venster niet opent, sta pop-ups toe voor Home Assistant."
       }
     },
     "error": {
       "cannot_connect": "Kan geen verbinding maken",
+      "unknown": "Onverwachte fout",
       "invalid_auth": "Geef geldige gegevens op",
       "invalid_auth_consumer": "Consumentenaccount vereist e-mail en wachtwoord",
-      "invalid_auth_business": "Zakelijk account vereist user ID en API key"
+      "invalid_auth_business": "Zakelijk account vereist user ID en API key",
+      "no_carrier": "Schakel minstens één vervoerder in",
+      "postnl_invalid_redirect": "Het geplakte adres bevat geen inlogcode",
+      "postnl_auth": "PostNL weigerde de inlogcode. Open de link opnieuw en plak het nieuwe adres",
+      "amazon_auth": "Inloggen bij Amazon mislukt of Amazon vroeg om een captcha/verificatiecode",
+      "amazon_unavailable": "De bibliotheek amazon-orders kon niet worden geïnstalleerd",
+      "amazon_credentials": "Vul het Amazon e-mailadres en wachtwoord in",
+      "amazon_invalid_redirect": "Het geplakte adres is niet de Amazon-pagina na het inloggen (moet /ap/maplanding en openid.oa2.authorization_code bevatten)",
+      "amazon_register_failed": "Amazon accepteerde de inlogcode niet (mogelijk verlopen). Open de nieuwe link en log opnieuw in",
+      "amazon_cookies_rejected": "De winkels accepteerden de login niet voor de bestelgeschiedenis. Controleer de geselecteerde winkels of probeer inloggen met cookies",
+      "amazon_cookies_invalid": "De geplakte tekst bevat geen inlogcookie (x-acbnl, x-acbde, ...) van de geselecteerde winkels",
+      "amazon_mixed_regions": "Inloggen via browser werkt voor Europese winkels of voor amazon.com, niet voor beide tegelijk. Gebruik voor een combinatie inloggen met cookies"
     },
     "abort": {
-      "already_configured": "Integratie is al geconfigureerd"
+      "already_configured": "Integratie is al geconfigureerd",
+      "reauth_successful": "Login bijgewerkt"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "DHL Parcel NL opties",
+        "title": "Parcel Tracking NL opties",
+        "menu_options": {
+          "general": "Algemeen en vervoerders",
+          "dhl": "DHL-account",
+          "postnl": "PostNL-account",
+          "amazon": "Amazon-bestellingen (experimenteel)"
+        }
+      },
+      "general": {
+        "title": "Algemeen",
+        "description": "Handmatige codes: komma-gescheiden. Gebruik `vervoerder:code` (dhl, postnl, dragonfly) of alleen de code om de vervoerder automatisch te herkennen.",
         "data": {
-          "account_type": "Accounttype",
-          "email": "E-mail (consumentenaccount, leeg = behouden)",
-          "password": "Wachtwoord (consumentenaccount, leeg = behouden)",
-          "user_id": "User ID (zakelijk account)",
-          "api_key": "API key (zakelijk account)",
-          "postal_code": "Postcode (optioneel)",
+          "enabled_carriers": "Vervoerders",
+          "postal_code": "Je postcode (nodig voor PostNL-tracking)",
           "tracking_codes": "Handmatige trackingcodes (optioneel, komma-gescheiden)",
           "delivered_keep_days": "Bezorgde pakketten bewaren (dagen)",
           "refresh_interval_minutes": "Verversingsinterval (minuten)",
@@ -47,13 +101,136 @@
           "refresh_end_time": "Einde verversen (HH:MM)",
           "summary_language": "Taal voor stemsamenvatting"
         }
+      },
+      "dhl": {
+        "title": "DHL-account",
+        "data": {
+          "account_type": "Type DHL-account",
+          "email": "E-mail (consumentenaccount, leeg = behouden)",
+          "password": "Wachtwoord (consumentenaccount, leeg = behouden)",
+          "user_id": "User ID (zakelijk account)",
+          "api_key": "API key (zakelijk account)"
+        }
+      },
+      "postnl": {
+        "title": "PostNL-account",
+        "description": "Status: {status}.\nDe accountsynchronisatie gebruikt de onofficiële login van de PostNL-app en kan stoppen als PostNL die wijzigt.\n1. Open deze link en log in bij PostNL: {authorize_url}\n2. Na het inloggen probeert de browser een `postnl://login?code=...` adres te openen (mogelijk met een foutmelding). Kopieer dat volledige adres uit de adresbalk of de ontwikkelaarstools (tabblad Netwerk) en plak het hieronder. Laat leeg om de huidige login te behouden.",
+        "data": {
+          "redirect_url": "Doorverwijs-URL (postnl://login?code=...)",
+          "postnl_logout": "Uitloggen bij PostNL"
+        }
+      },
+      "amazon": {
+        "title": "Amazon-bestellingen (experimenteel)",
+        "description": "Voegt nieuwe DHL-, PostNL- en Dragonfly-zendingen uit je Amazon-bestellingen automatisch toe. Bestellingen staan alleen in de winkel waar ze geplaatst zijn, dus selecteer elke winkel waar je bestelt (amazon.nl, amazon.de, amazon.fr, amazon.es, ...); elke winkel wordt apart gelezen.\n\nLet op: de gebruiksvoorwaarden van Amazon verbieden geautomatiseerde toegang. Amazon kan om captcha's vragen of je account beperken. Gebruik op eigen risico. Bestellingen worden elke 30-60 minuten gelezen, alleen binnen het verversingsvenster.\n\nInloggen via browser (aanbevolen): je logt zelf in bij Amazon (captcha's en verificatiecodes regel je in je browser); Home Assistant bewaart alleen een inlogtoken, geen wachtwoord. Inloggen met wachtwoord: gebruikt e-mail en wachtwoord; stopt zodra Amazon om een captcha vraagt.\n\nInloggen met cookies: je kopieert de cookies van je eigen ingelogde amazon.nl-sessie; het betrouwbaarst als inloggen via browser niet werkt.",
+        "data": {
+          "amazon_enabled": "Amazon.nl-bestellingen inschakelen",
+          "amazon_login_method": "Inlogmethode",
+          "amazon_poll_minutes": "Bestellingen controleren elke (minuten)",
+          "amazon_stores": "Amazon-winkels om bestellingen uit te lezen"
+        }
+      },
+      "amazon_browser": {
+        "title": "Amazon-login - adres plakken",
+        "description": "Status: {status}.\n1. Open deze link en log in met je Amazon-account (hetzelfde account als op amazon.nl): {signin_url}\n2. Na het inloggen toont Amazon een foutpagina (\"pagina niet gevonden\"). Dat is de bedoeling.\n3. Kopieer het volledige adres van die pagina uit de adresbalk (begint met `{maplanding}` en bevat `openid.oa2.authorization_code`) en plak het binnen een paar minuten hieronder.\n\nEr wordt een apparaat \"Parcel Tracking NL\" aan je Amazon-account toegevoegd (Je apparaten). Verwijder het daar om de login in te trekken. Laat leeg om de huidige login te behouden.\n\nWinkels: {stores}. De inlogpagina voor alle Europese winkels staat op amazon.de (amazon.nl heeft geen eigen inlogpagina); het is hetzelfde Amazon-account.",
+        "data": {
+          "amazon_redirect_url": "Adres van de Amazon-pagina na het inloggen"
+        }
+      },
+      "amazon_password": {
+        "title": "Amazon inloggen met wachtwoord",
+        "description": "Lege velden behouden de opgeslagen waarde. De integratie lost nooit captcha's op: ze stopt en vraagt je opnieuw in te loggen.",
+        "data": {
+          "amazon_email": "Amazon e-mail",
+          "amazon_password": "Amazon wachtwoord",
+          "amazon_otp_secret": "TOTP-geheim voor tweestapsverificatie (optioneel)"
+        }
+      },
+      "amazon_cookies": {
+        "title": "Amazon-cookies uit je browser",
+        "description": "Status: {status}. Winkels: {stores}.\n1. Log in bij elke winkel in je browser (vink \"Ingelogd blijven\" aan) en open {orders_url}.\n2. Open de ontwikkelaarstools (F12) -> Netwerk, herlaad de pagina, klik op het eerste verzoek (orders) en kopieer de waarde van de verzoekheader `Cookie`.\n3. Plak die hieronder, één regel per winkel. De winkel wordt herkend aan de inlogcookie (`x-acbnl`, `x-acbde`, `x-acbfr`, `x-acbes`, ...).\n\nDe cookies worden versleuteld opgeslagen en alleen gebruikt om je bestellingen te lezen. Als Amazon een sessie beëindigt, vraagt Home Assistant om nieuwe cookies. Laat leeg om de huidige cookies te behouden.",
+        "data": {
+          "amazon_cookies": "Cookie-headers (één regel per winkel)"
+        }
+      },
+      "amazon_proxy": {
+        "title": "Inloggen bij Amazon",
+        "description": "Er opent een nieuw venster met de Amazon-inlogpagina, via Home Assistant. Log in met je Amazon-account (winkels: {stores}); captcha's en verificatiecodes verschijnen daar zoals gewoonlijk. Na het inloggen sluit het venster en gaat dit dialoogvenster vanzelf verder. Niets te kopiëren.\n\nAls het venster niet opent, sta pop-ups toe voor Home Assistant."
       }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken",
+      "unknown": "Onverwachte fout",
+      "no_carrier": "Schakel minstens één vervoerder in",
+      "postnl_invalid_redirect": "Het geplakte adres bevat geen inlogcode",
+      "postnl_auth": "PostNL weigerde de inlogcode. Open de link opnieuw en plak het nieuwe adres",
+      "amazon_auth": "Inloggen bij Amazon mislukt of Amazon vroeg om een captcha/verificatiecode",
+      "amazon_unavailable": "De bibliotheek amazon-orders kon niet worden geïnstalleerd",
+      "amazon_credentials": "Vul het Amazon e-mailadres en wachtwoord in",
+      "amazon_invalid_redirect": "Het geplakte adres is niet de Amazon-pagina na het inloggen (moet /ap/maplanding en openid.oa2.authorization_code bevatten)",
+      "amazon_register_failed": "Amazon accepteerde de inlogcode niet (mogelijk verlopen). Open de nieuwe link en log opnieuw in",
+      "amazon_cookies_rejected": "De winkels accepteerden de login niet voor de bestelgeschiedenis. Controleer de geselecteerde winkels of probeer inloggen met cookies",
+      "amazon_cookies_invalid": "De geplakte tekst bevat geen inlogcookie (x-acbnl, x-acbde, ...) van de geselecteerde winkels",
+      "amazon_mixed_regions": "Inloggen via browser werkt voor Europese winkels of voor amazon.com, niet voor beide tegelijk. Gebruik voor een combinatie inloggen met cookies"
+    }
+  },
+  "issues": {
+    "postnl_postal_code_missing": {
+      "title": "PostNL heeft je postcode nodig",
+      "description": "PostNL-tracking heeft de postcode van de ontvanger nodig. Voeg die toe in de integratie-opties (Algemeen) of gebruik de actie track_parcel met `postal_code`. Tot die tijd worden PostNL-pakketten overgeslagen."
+    },
+    "amazon_auth_required": {
+      "title": "Amazon.nl-login nodig",
+      "description": "Amazon vroeg om opnieuw in te loggen, een captcha of een verificatiecode. Het controleren van Amazon-bestellingen is gestopt; DHL-, PostNL- en Dragonfly-tracking gaan door. Configureer de integratie opnieuw om in te loggen."
+    },
+    "amazon_unavailable": {
+      "title": "Amazon.nl-bestellingen niet beschikbaar",
+      "description": "De bibliotheek amazon-orders kon niet worden geïnstalleerd of geladen, dus Amazon.nl-bestellingen worden niet gecontroleerd. Tracking gaat door."
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Parcel Tracking NL is niet geladen"
+    },
+    "carrier_disabled": {
+      "message": "Dit pakket kan niet worden gevolgd: {error}"
+    },
+    "not_tracked": {
+      "message": "Pakket {tracking_code} wordt niet gevolgd"
     }
   },
   "services": {
     "dhl_parcel_refresh": {
-      "name": "DHL-pakketten verversen",
-      "description": "Forceer directe synchronisatie van DHL-pakketten"
+      "name": "Pakketten verversen",
+      "description": "Forceer direct verversen van alle gevolgde pakketten (en Amazon.nl-bestellingen indien ingeschakeld)."
+    },
+    "track_parcel": {
+      "name": "Pakket volgen",
+      "description": "Begin met het volgen van een DHL-, PostNL- of Dragonfly-pakket.",
+      "fields": {
+        "tracking_code": {
+          "name": "Trackingcode",
+          "description": "Trackingcode van het pakket."
+        },
+        "carrier": {
+          "name": "Vervoerder",
+          "description": "Vervoerder van het pakket, of auto om die uit de code te herkennen."
+        },
+        "postal_code": {
+          "name": "Postcode",
+          "description": "Postcode van de ontvanger (nodig voor PostNL als die niet is ingesteld)."
+        }
+      }
+    },
+    "untrack_parcel": {
+      "name": "Pakket niet meer volgen",
+      "description": "Stop met het volgen van een pakket. Accountsynchronisatie en Amazon voegen het niet opnieuw toe.",
+      "fields": {
+        "tracking_code": {
+          "name": "Trackingcode",
+          "description": "Trackingcode van het pakket."
+        }
+      }
     }
   },
   "entity": {
@@ -81,14 +258,15 @@
       "status_changed": "Pakketstatus gewijzigd",
       "delivery_window_changed": "Bezorgvenster gewijzigd",
       "substatus_changed": "Pakket-substatus gewijzigd",
-      "parcel_removed": "Pakket verwijderd na bewaartermijn"
+      "parcel_removed": "Pakket verwijderd"
     }
   },
   "selector": {
     "account_type": {
       "options": {
         "consumer": "Consument (e-mail/wachtwoord)",
-        "business": "Zakelijk (user ID/API key)"
+        "business": "Zakelijk (user ID/API key)",
+        "none": "Geen DHL-account"
       }
     },
     "summary_language": {
@@ -96,6 +274,22 @@
         "en": "Engels",
         "pl": "Pools",
         "nl": "Nederlands"
+      }
+    },
+    "carrier": {
+      "options": {
+        "auto": "Automatisch herkennen",
+        "dhl": "DHL",
+        "postnl": "PostNL",
+        "dragonfly": "Dragonfly"
+      }
+    },
+    "amazon_login_method": {
+      "options": {
+        "browser": "Inloggen bij Amazon via Home Assistant (aanbevolen)",
+        "browser_paste": "Inloggen bij Amazon, adres plakken (reserve)",
+        "cookies": "Cookies uit je browser",
+        "password": "E-mail en wachtwoord"
       }
     }
   }

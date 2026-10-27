@@ -1,3 +1,31 @@
 dhl_parcel_refresh:
-  name: Refresh parcels
-  description: Force an immediate refresh of DHL parcel data for all configured DHL Parcel Netherlands entries.
+
+track_parcel:
+  fields:
+    tracking_code:
+      required: true
+      example: "AMZNL000000000001"
+      selector:
+        text:
+    carrier:
+      default: auto
+      selector:
+        select:
+          translation_key: carrier
+          options:
+            - auto
+            - dhl
+            - postnl
+            - dragonfly
+    postal_code:
+      example: "1234AB"
+      selector:
+        text:
+
+untrack_parcel:
+  fields:
+    tracking_code:
+      required: true
+      example: "JVGL00000000000000000000"
+      selector:
+        text:

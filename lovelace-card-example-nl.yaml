@@ -7,7 +7,7 @@ type: entities
 title: DHL Pakketten
 entities:
   - entity: sensor.dhl_parcel_count
-    name: Aantal pakketten
+    name: Actieve pakketten
   - entity: sensor.dhl_tracking_details
     name: Tracking en afzenders
   - entity: sensor.dhl_delivered_details
@@ -34,16 +34,16 @@ content: |
   Geen actieve DHL-pakketten.
   {% else %}
   {% for p in rows %}
-  **{{ loop.index }}. Pakket: {{ p.tracking_code }}**
+  **{{ loop.index }}. Pakket {{ p.carrier_name or 'DHL' }}: {{ p.tracking_code }}**
   - Afzender: {{ p.sender or 'Onbekende afzender' }}
   - Status: {{ p.status_localized or p.status or 'onbekend' }}
-  {% if p.delivery_time_from and p.delivery_time_to %}
-  - Verwachte levering: {{ p.delivery_day_label_localized or p.delivery_day_label or 'binnenkort' }}, {{ p.delivery_time_from_hhmm or as_datetime(p.delivery_time_from).strftime('%H:%M') }} - {{ p.delivery_time_to_hhmm or as_datetime(p.delivery_time_to).strftime('%H:%M') }}
+  {% if p.delivery_time_from_hhmm and p.delivery_time_to_hhmm %}
+  - Verwachte levering: {{ p.delivery_day_label or 'binnenkort' }}, {{ p.delivery_time_from_hhmm }} - {{ p.delivery_time_to_hhmm }}
   {% else %}
   - Verwachte levering: geen gegevens
   {% endif %}
-  {% if p.tracking_code %}
-  - [Online volgen](https://www.dhlparcel.nl/nl/volg-uw-zending-0?tt={{ p.tracking_code }})
+  {% if p.tracking_url %}
+  - [Online volgen]({{ p.tracking_url }})
   {% endif %}
 
   {% endfor %}
@@ -65,10 +65,10 @@ content: |
   Geen bezorgde pakketten in het huidige retentievenster.
   {% else %}
   {% for p in rows %}
-  **{{ loop.index }}. Pakket: {{ p.tracking_code }}**
+  **{{ loop.index }}. Pakket {{ p.carrier_name or 'DHL' }}: {{ p.tracking_code }}**
   - Afzender: {{ p.sender }}
   - Status: {{ p.status_localized or p.status }}
-  - Bezorgd: {{ p.delivered_day_label or 'recent' }} om {{ p.delivered_at_hhmm or as_datetime(p.delivered_at).strftime('%H:%M') }}
+  - Bezorgd: {{ p.delivered_day_label or 'recent' }}{% if p.delivered_at_hhmm %} om {{ p.delivered_at_hhmm }}{% endif %}
   - Bezorglocatie: {{ p.delivery_location or 'geen gegevens' }}
 
   {% endfor %}
