@@ -4,3 +4,8 @@
 .entire/
 .claude/
 CLAUDE.md
+
+# Release zips
+*.zip
+
+*.tar.gz
