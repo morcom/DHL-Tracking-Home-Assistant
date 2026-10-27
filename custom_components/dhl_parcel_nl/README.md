@@ -1,5 +1,28 @@
 # Parcel Tracking NL - DHL, PostNL, Dragonfly (Home Assistant custom integration)
 
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![GitHub Release](https://img.shields.io/github/release/morcom/DHL-Tracking-Home-Assistant.svg)](https://github.com/morcom/DHL-Tracking-Home-Assistant/releases)
+[![GitHub Downloads (latest)](https://img.shields.io/github/downloads/morcom/DHL-Tracking-Home-Assistant/latest/total.svg)](https://github.com/morcom/DHL-Tracking-Home-Assistant/releases/latest)
+
+## Installation
+
+### HACS (recommended)
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=morcom&repository=DHL-Tracking-Home-Assistant&category=integration)
+
+1. Open HACS in Home Assistant.
+2. Search for **Parcel Tracking NL** (or add this repository as a custom repository if not listed).
+3. Install the integration and restart Home Assistant.
+4. Go to **Settings -> Devices & Services -> Add Integration -> Parcel Tracking NL** and follow the setup wizard.
+
+### Manual
+
+1. Download the latest release zip from the [Releases page](https://github.com/morcom/DHL-Tracking-Home-Assistant/releases).
+2. Extract `dhl_parcel_nl` into your `custom_components` directory.
+3. Restart Home Assistant.
+4. Add the integration via **Settings -> Devices & Services**.
+
+
 ## 2.0.0 Update Notes
 
 `2.0.0` turns the DHL integration into a multi-carrier integration. It requires
