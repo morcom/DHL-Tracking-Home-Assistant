@@ -1,1 +1,6 @@
 .kilo/
+
+# Entire / Claude local tooling
+.entire/
+.claude/
+CLAUDE.md
