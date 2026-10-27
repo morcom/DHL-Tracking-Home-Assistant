@@ -9,8 +9,9 @@ from typing import Any
 
 from homeassistant.components.event import EventEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     DOMAIN,
@@ -20,7 +21,6 @@ from .const import (
     EVENT_DHL_PARCEL_STATUS_CHANGED,
     EVENT_DHL_PARCEL_SUBSTATUS_CHANGED,
 )
-
 
 EVENT_ENTITY_MAP: dict[str, str] = {
     EVENT_DHL_PARCEL_DISCOVERED: "Parcel Discovered",
@@ -42,7 +42,7 @@ EVENT_TRANSLATION_KEY_MAP: dict[str, str] = {
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up DHL event entities."""
     entities = [
@@ -75,38 +75,36 @@ class DHLParcelEventEntity(EventEntity):
         self._event_type = event_type
         self._attr_unique_id = f"{entry_id}_{event_type}"
         self._attr_name = f"DHL {name_suffix}"
+        # Keep the entity_id used by earlier versions and the examples, also
+        # for new installs after the device was renamed.
+        self.entity_id = f"event.dhl_parcel_netherlands_{event_type}"
         self._attr_translation_key = EVENT_TRANSLATION_KEY_MAP[event_type]
         self._attr_event_types = [event_type]
         self._attr_icon = "mdi:bell-ring-outline"
-        self._unsub = None
 
     @property
-    def device_info(self) -> dict[str, Any]:
+    def device_info(self) -> DeviceInfo:
         """Return device information for grouping in UI."""
-        return {
-            "identifiers": {(DOMAIN, self._entry_id)},
-            "name": "DHL Parcel Netherlands",
-            "manufacturer": "DHL eCommerce",
-            "model": "Parcel Tracking",
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry_id)},
+            name="Parcel Tracking NL",
+            manufacturer="DHL, PostNL, Dragonfly",
+            model="Parcel Tracking",
+            entry_type=DeviceEntryType.SERVICE,
+        )
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to HA bus events when entity is added."""
         await super().async_added_to_hass()
 
         @callback
-        def _handle_event(event) -> None:
+        def _handle_event(event: Event) -> None:
             event_data: dict[str, Any] = dict(event.data) if event.data else {}
-            self._trigger_event(
-                event_type=self._event_type,
-                event_attributes=event_data,
-            )
+            self._trigger_event(self._event_type, event_data)
+            # Publishing the state is required, otherwise the entity stays
+            # "unknown" and event.received / state triggers never fire.
+            self.async_write_ha_state()
 
-        self._unsub = self._hass.bus.async_listen(self._event_type, _handle_event)
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Unsubscribe bus listener."""
-        if self._unsub is not None:
-            self._unsub()
-            self._unsub = None
-        await super().async_will_remove_from_hass()
+        self.async_on_remove(
+            self._hass.bus.async_listen(self._event_type, _handle_event)
+        )

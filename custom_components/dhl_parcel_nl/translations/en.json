@@ -2,44 +2,98 @@
   "config": {
     "step": {
       "user": {
-        "title": "DHL Parcel Netherlands",
-        "description": "Choose account type first. Consumer: email + password only. Business: user ID + API key.",
+        "title": "Parcel Tracking NL (DHL, PostNL, Dragonfly)",
+        "description": "DHL account: Consumer = email + password, Business = user ID + API key, None = no DHL account (PostNL/Dragonfly/manual codes only). The PostNL login and Amazon.nl are set up later in the options.",
         "data": {
-          "account_type": "Account type",
-          "email": "Email (private account, leave empty to keep)",
-          "password": "Password (private account, leave empty to keep)",
-          "user_id": "User ID (business account)",
-          "api_key": "API Key (business account)",
-          "postal_code": "Postal code (optional)",
+          "account_type": "DHL account type",
+          "email": "DHL email (consumer account)",
+          "password": "DHL password (consumer account)",
+          "user_id": "DHL user ID (business account)",
+          "api_key": "DHL API key (business account)",
+          "postal_code": "Your postal code (needed for PostNL tracking)",
+          "enabled_carriers": "Carriers",
           "delivered_keep_days": "Keep delivered parcels (days)",
           "refresh_interval_minutes": "Refresh interval in minutes",
           "refresh_start_time": "Refresh start time (HH:MM)",
           "refresh_end_time": "Refresh end time (HH:MM)",
           "summary_language": "Voice summary language"
         }
+      },
+      "reauth_postnl": {
+        "title": "PostNL login expired",
+        "description": "1. Open this link and log in to PostNL: {authorize_url}\n2. After login the browser tries to open a `postnl://login?code=...` address (it may show an error). Copy that complete address from the address bar or the developer tools (Network tab) and paste it below.",
+        "data": {
+          "redirect_url": "Redirect URL (postnl://login?code=...)"
+        }
+      },
+      "reauth_amazon_password": {
+        "title": "Amazon.nl login needed",
+        "description": "Amazon asked for a new login (wrong password, captcha or verification code). Log in once on amazon.nl in a browser, then enter your credentials again. Empty fields keep the stored value.",
+        "data": {
+          "amazon_email": "Amazon email",
+          "amazon_password": "Amazon password",
+          "amazon_otp_secret": "TOTP secret for two-step verification (optional)"
+        }
+      },
+      "reauth_amazon_browser": {
+        "title": "Amazon.nl login needed",
+        "description": "The Amazon login expired or was revoked.\n1. Open this link and log in: {signin_url}\n2. Copy the complete address of the error page shown after the login (`{maplanding}...`) and paste it below.\n\nStores: {stores}. The sign-in page is on amazon.de for all European stores (amazon.nl has no sign-in page of its own); it is the same Amazon account.",
+        "data": {
+          "amazon_redirect_url": "Address of the Amazon page after login"
+        }
+      },
+      "reauth_amazon_cookies": {
+        "title": "Amazon.nl cookies expired",
+        "description": "amazon.nl no longer accepts the stored cookies. Log in on amazon.nl in your browser, open your orders, copy the `Cookie` request header from the developer tools (F12 -> Network) and paste it below.",
+        "data": {
+          "amazon_cookies": "Cookie headers (one line per store)"
+        }
+      },
+      "reauth_amazon_proxy": {
+        "title": "Amazon login needed",
+        "description": "A new window opens with the Amazon sign-in page, served through Home Assistant. Log in with your Amazon account (stores: {stores}); captchas and verification codes appear there as usual. When the login is complete the window closes and this dialog continues by itself. Nothing to copy.\n\nIf the window does not open, allow pop-ups for Home Assistant."
       }
     },
     "error": {
       "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error",
       "invalid_auth": "Provide valid credentials",
       "invalid_auth_consumer": "Consumer account requires email and password",
-      "invalid_auth_business": "Business account requires user ID and API key"
+      "invalid_auth_business": "Business account requires user ID and API key",
+      "no_carrier": "Enable at least one carrier",
+      "postnl_invalid_redirect": "The pasted address does not contain a login code",
+      "postnl_auth": "PostNL rejected the login code. Open the link again and paste the new address",
+      "amazon_auth": "Amazon login failed or Amazon asked for a captcha/verification code",
+      "amazon_unavailable": "The amazon-orders library could not be installed",
+      "amazon_credentials": "Enter the Amazon email and password",
+      "amazon_invalid_redirect": "The pasted address is not the Amazon page shown after login (it must contain /ap/maplanding and openid.oa2.authorization_code)",
+      "amazon_register_failed": "Amazon did not accept the login code (it may have expired). Open the new link and log in again",
+      "amazon_cookies_rejected": "The stores did not accept the login for the order history. Check the selected stores, or try the cookie login",
+      "amazon_cookies_invalid": "The pasted text contains no sign-in cookie (x-acbnl, x-acbde, ...) of the selected stores",
+      "amazon_mixed_regions": "The browser login works for European stores or for amazon.com, not both at once. Use the cookie login for a mix"
     },
     "abort": {
-      "already_configured": "Integration is already configured"
+      "already_configured": "Integration is already configured",
+      "reauth_successful": "Login updated"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "DHL Parcel NL options",
+        "title": "Parcel Tracking NL options",
+        "menu_options": {
+          "general": "General and carriers",
+          "dhl": "DHL account",
+          "postnl": "PostNL account",
+          "amazon": "Amazon orders (experimental)"
+        }
+      },
+      "general": {
+        "title": "General",
+        "description": "Manual codes: comma separated. Use `carrier:code` (dhl, postnl, dragonfly) or a bare code to detect the carrier automatically.",
         "data": {
-          "account_type": "Account type",
-          "email": "Email (private account, leave empty to keep)",
-          "password": "Password (private account, leave empty to keep)",
-          "user_id": "User ID (business account)",
-          "api_key": "API Key (business account)",
-          "postal_code": "Postal code (optional)",
+          "enabled_carriers": "Carriers",
+          "postal_code": "Your postal code (needed for PostNL tracking)",
           "tracking_codes": "Manual tracking codes (optional, comma separated)",
           "delivered_keep_days": "Keep delivered parcels (days)",
           "refresh_interval_minutes": "Refresh interval in minutes",
@@ -47,13 +101,136 @@
           "refresh_end_time": "Refresh end time (HH:MM)",
           "summary_language": "Voice summary language"
         }
+      },
+      "dhl": {
+        "title": "DHL account",
+        "data": {
+          "account_type": "DHL account type",
+          "email": "Email (consumer account, leave empty to keep)",
+          "password": "Password (consumer account, leave empty to keep)",
+          "user_id": "User ID (business account)",
+          "api_key": "API key (business account)"
+        }
+      },
+      "postnl": {
+        "title": "PostNL account",
+        "description": "Status: {status}.\nThe account sync uses the unofficial PostNL app login and may stop working if PostNL changes it.\n1. Open this link and log in to PostNL: {authorize_url}\n2. After login the browser tries to open a `postnl://login?code=...` address (it may show an error). Copy that complete address from the address bar or the developer tools (Network tab) and paste it below. Leave empty to keep the current login.",
+        "data": {
+          "redirect_url": "Redirect URL (postnl://login?code=...)",
+          "postnl_logout": "Log out from PostNL"
+        }
+      },
+      "amazon": {
+        "title": "Amazon orders (experimental)",
+        "description": "Adds new DHL, PostNL and Dragonfly shipments from your Amazon orders automatically. Orders exist only in the store they were placed in, so select every store you order from (amazon.nl, amazon.de, amazon.fr, amazon.es, ...); each one is read separately.\n\nWarning: the Amazon Conditions of Use forbid automated access. Amazon may ask for captchas or restrict your account. Use at your own risk. Orders are read every 30-60 minutes, only inside the refresh window.\n\nBrowser login (recommended): you log in on Amazon yourself (captchas and verification codes are handled in your browser); Home Assistant only keeps a login token, no password. Password login: uses your email and password; it stops when Amazon asks for a captcha.\n\nCookie login: you copy the cookies of your own logged-in amazon.nl browser session; most reliable when the browser login does not work.",
+        "data": {
+          "amazon_enabled": "Enable Amazon.nl orders",
+          "amazon_login_method": "Login method",
+          "amazon_poll_minutes": "Check orders every (minutes)",
+          "amazon_stores": "Amazon stores to read orders from"
+        }
+      },
+      "amazon_browser": {
+        "title": "Amazon login - paste the address",
+        "description": "Status: {status}.\n1. Open this link and log in with your Amazon account (the same account as amazon.nl): {signin_url}\n2. After the login Amazon shows an error page (\"page not found\"). That is expected.\n3. Copy the complete address of that page from the address bar (it starts with `{maplanding}` and contains `openid.oa2.authorization_code`) and paste it below within a few minutes.\n\nA device \"Parcel Tracking NL\" is added to your Amazon account (Your devices). Remove it there to revoke the login. Leave empty to keep the current login.\n\nStores: {stores}. The sign-in page is on amazon.de for all European stores (amazon.nl has no sign-in page of its own); it is the same Amazon account.",
+        "data": {
+          "amazon_redirect_url": "Address of the Amazon page after login"
+        }
+      },
+      "amazon_password": {
+        "title": "Amazon password login",
+        "description": "Empty fields keep the stored value. The integration never solves captchas: it stops and asks you to log in again.",
+        "data": {
+          "amazon_email": "Amazon email",
+          "amazon_password": "Amazon password",
+          "amazon_otp_secret": "TOTP secret for two-step verification (optional)"
+        }
+      },
+      "amazon_cookies": {
+        "title": "Amazon cookies from your browser",
+        "description": "Status: {status}. Stores: {stores}.\n1. Log in on each store in your browser (tick \"Keep me signed in\") and open {orders_url}.\n2. Open the developer tools (F12) -> Network, reload the page, click the first request (orders) and copy the value of the request header `Cookie`.\n3. Paste it below, one line per store. The store is recognized by its sign-in cookie (`x-acbnl`, `x-acbde`, `x-acbfr`, `x-acbes`, ...).\n\nThe cookies are stored obfuscated and used only to read your orders. When Amazon ends a session, Home Assistant asks you to paste new cookies. Leave empty to keep the current cookies.",
+        "data": {
+          "amazon_cookies": "Cookie headers (one line per store)"
+        }
+      },
+      "amazon_proxy": {
+        "title": "Log in to Amazon",
+        "description": "A new window opens with the Amazon sign-in page, served through Home Assistant. Log in with your Amazon account (stores: {stores}); captchas and verification codes appear there as usual. When the login is complete the window closes and this dialog continues by itself. Nothing to copy.\n\nIf the window does not open, allow pop-ups for Home Assistant."
       }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error",
+      "no_carrier": "Enable at least one carrier",
+      "postnl_invalid_redirect": "The pasted address does not contain a login code",
+      "postnl_auth": "PostNL rejected the login code. Open the link again and paste the new address",
+      "amazon_auth": "Amazon login failed or Amazon asked for a captcha/verification code",
+      "amazon_unavailable": "The amazon-orders library could not be installed",
+      "amazon_credentials": "Enter the Amazon email and password",
+      "amazon_invalid_redirect": "The pasted address is not the Amazon page shown after login (it must contain /ap/maplanding and openid.oa2.authorization_code)",
+      "amazon_register_failed": "Amazon did not accept the login code (it may have expired). Open the new link and log in again",
+      "amazon_cookies_rejected": "The stores did not accept the login for the order history. Check the selected stores, or try the cookie login",
+      "amazon_cookies_invalid": "The pasted text contains no sign-in cookie (x-acbnl, x-acbde, ...) of the selected stores",
+      "amazon_mixed_regions": "The browser login works for European stores or for amazon.com, not both at once. Use the cookie login for a mix"
+    }
+  },
+  "issues": {
+    "postnl_postal_code_missing": {
+      "title": "PostNL needs your postal code",
+      "description": "PostNL tracking needs the receiver's postal code. Add it in the integration options (General) or use the track_parcel action with `postal_code`. Affected PostNL parcels are skipped until then."
+    },
+    "amazon_auth_required": {
+      "title": "Amazon.nl login needed",
+      "description": "Amazon asked for a new login, a captcha or a verification code. Amazon order polling is stopped; DHL, PostNL and Dragonfly tracking continue. Reconfigure the integration to log in again."
+    },
+    "amazon_unavailable": {
+      "title": "Amazon.nl orders unavailable",
+      "description": "The amazon-orders library could not be installed or loaded, so Amazon.nl orders are not checked. Carrier tracking continues."
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Parcel Tracking NL is not loaded"
+    },
+    "carrier_disabled": {
+      "message": "Cannot track this parcel: {error}"
+    },
+    "not_tracked": {
+      "message": "Parcel {tracking_code} is not tracked"
     }
   },
   "services": {
     "dhl_parcel_refresh": {
-      "name": "Refresh DHL parcels",
-      "description": "Force immediate DHL parcel sync"
+      "name": "Refresh parcels",
+      "description": "Force an immediate refresh of all tracked parcels (and Amazon.nl orders when enabled)."
+    },
+    "track_parcel": {
+      "name": "Track parcel",
+      "description": "Start tracking a DHL, PostNL or Dragonfly parcel.",
+      "fields": {
+        "tracking_code": {
+          "name": "Tracking code",
+          "description": "Tracking code of the parcel."
+        },
+        "carrier": {
+          "name": "Carrier",
+          "description": "Carrier of the parcel, or auto to detect it from the code."
+        },
+        "postal_code": {
+          "name": "Postal code",
+          "description": "Receiver postal code (needed for PostNL when not configured)."
+        }
+      }
+    },
+    "untrack_parcel": {
+      "name": "Stop tracking parcel",
+      "description": "Stop tracking a parcel. Account sync and Amazon will not add it again.",
+      "fields": {
+        "tracking_code": {
+          "name": "Tracking code",
+          "description": "Tracking code of the parcel."
+        }
+      }
     }
   },
   "entity": {
@@ -81,14 +258,15 @@
       "status_changed": "Parcel status changed",
       "delivery_window_changed": "Delivery window changed",
       "substatus_changed": "Parcel substatus changed",
-      "parcel_removed": "Parcel removed after retention"
+      "parcel_removed": "Parcel removed"
     }
   },
   "selector": {
     "account_type": {
       "options": {
         "consumer": "Consumer (email/password)",
-        "business": "Business (user ID/API key)"
+        "business": "Business (user ID/API key)",
+        "none": "No DHL account"
       }
     },
     "summary_language": {
@@ -96,6 +274,22 @@
         "en": "English",
         "pl": "Polish",
         "nl": "Dutch"
+      }
+    },
+    "carrier": {
+      "options": {
+        "auto": "Detect automatically",
+        "dhl": "DHL",
+        "postnl": "PostNL",
+        "dragonfly": "Dragonfly"
+      }
+    },
+    "amazon_login_method": {
+      "options": {
+        "browser": "Log in on Amazon through Home Assistant (recommended)",
+        "browser_paste": "Log in on Amazon, paste the address (fallback)",
+        "cookies": "Cookies from your browser",
+        "password": "Email and password"
       }
     }
   }

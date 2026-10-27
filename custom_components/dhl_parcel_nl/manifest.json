@@ -1,14 +1,18 @@
 {
   "domain": "dhl_parcel_nl",
-  "name": "DHL Parcel Netherlands",
-  "version": "1.7.9",
+  "name": "Parcel Tracking NL (DHL, PostNL, Dragonfly)",
+  "codeowners": [
+    "@morcom"
+  ],
   "config_flow": true,
+  "dependencies": [
+    "http"
+  ],
   "documentation": "https://github.com/morcom/DHL-Tracking-Home-Assistant",
-  "issue_tracker": "https://github.com/morcom/DHL-Tracking-Home-Assistant/issues",
-  "codeowners": ["@morcom"],
-  "dependencies": [],
   "integration_type": "service",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/morcom/DHL-Tracking-Home-Assistant/issues",
   "quality_scale": "silver",
-  "requirements": []
+  "requirements": [],
+  "version": "2.0.0"
 }
