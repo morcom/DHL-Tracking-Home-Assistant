@@ -23,6 +23,9 @@
 - Domain `dhl_parcel_nl`; keep `manifest.json` keys sorted (hassfest) and the version in sync
   with `CHANGELOG.md` and the README update notes.
 - Run `ruff check` / `ruff format` and the Home Assistant test harness before committing.
+- `README.md` in the repository root is the master. `custom_components/dhl_parcel_nl/README.md`
+  must be a byte-identical copy of it: after every README change run
+  `Copy-Item README.md custom_components\dhl_parcel_nl\README.md -Force`.
 
 <!-- entire-agent:begin -->
 Read .entire/agent-guide.md for this repository's workflow, source inspection, and verification guidance.

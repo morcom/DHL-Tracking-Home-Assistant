@@ -2,7 +2,7 @@
 
 ## 2.0.0
 
-Requires Home Assistant 2026.10 or newer. New dependency: `http` (always loaded by default).
+Requires Home Assistant 2026.10 or newer (tested on 2026.10.4). New dependency: `http` (always loaded by default).
 
 ### New
 - **Multi-carrier:** the integration now tracks DHL, **PostNL** and **Dragonfly** parcels

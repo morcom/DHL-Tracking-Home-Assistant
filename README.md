@@ -2,8 +2,9 @@
 
 ## 2.0.0 Update Notes
 
-`2.0.0` turns the DHL integration into a multi-carrier integration and requires
-Home Assistant 2026.10 or newer. See `CHANGELOG.md` for details.
+`2.0.0` turns the DHL integration into a multi-carrier integration. It requires
+Home Assistant 2026.10 or newer (tested on 2026.10.4; older versions are untested).
+See `CHANGELOG.md` for details.
 
 - New carriers: **PostNL** (public tracking + optional account sync) and **Dragonfly**
   (Amazon's Dutch delivery partner, `AMZNL...` codes).
@@ -24,6 +25,7 @@ Recent changes from `1.7.4` to `1.7.8`:
   - Added `tab=incoming` for consumer parcel listing.
   - Added consumer XSRF header support (`x-xsrf-token`) from session cookies.
   - Added one-time re-authentication + retry on consumer `401` for parcel listing.
+  - Consumer authentication test no longer requires bearer token presence.
 
 - `1.7.6`
   - Hardened unload flow for partial/failed platform load states.
@@ -44,23 +46,27 @@ Please review the example automations/cards and expose at least summary entities
 
 *License: GNU GPL v3 or later (see `LICENSE`)*
 
-This integration tracks DHL parcels for consumer and business accounts,
-creates dynamic parcel sensors, emits automation events, and exposes
-voice-assistant friendly summary entities. If you use AI Voice Assistant then 
-just expose dhl_tracking_details or voice summary - and ask - do you have any
-DHL Packages for me? It would provide details. Automatically.
+This integration tracks DHL, PostNL and Dragonfly parcels. Parcels come from a DHL
+consumer or business account, a PostNL account, your Amazon orders (experimental), or
+tracking codes you enter yourself. It creates dynamic parcel sensors, emits automation
+events, and exposes voice-assistant friendly summary entities. If you use an AI Voice
+Assistant then just expose dhl_tracking_details or voice summary - and ask - do you have
+any packages for me? It would provide details. Automatically.
 
 You have as well automation examples - as we need to get variables. So - those
 are to guide you.
 
 ## How it works
 
-- on consumer account, it is login to `my.dhlecommerce.nl`, list all packages 
-(using your username) and password
-- then - it is using DHL API *track-trace* to get package details
-
-- on business account, it is using DHL API Gateway to get package 
-details - using API key and user ID
+- every parcel is tracked by its carrier (DHL, PostNL or Dragonfly); see
+  "Carriers and sources" below for how parcels are found
+- PostNL and Dragonfly parcels are read from their public tracking pages
+- for DHL:
+  - on a consumer account, it logs in to `my.dhlecommerce.nl`, lists all packages
+    (using your username and password), and then uses the DHL API *track-trace* to get
+    package details
+  - on a business account, it uses the DHL API Gateway to get package details, using
+    API key and user ID
 
 ## Account modes
 
@@ -179,7 +185,10 @@ Important:
 | PostNL | public Track & Trace (needs the receiver's postal code) | PostNL login (optional) | `sensor.postnl_parcel_<code>` / `<entry_id>_postnl_<code>` |
 | Dragonfly | public tracking page API (`AMZNL...` codes) | - | `sensor.dragonfly_parcel_<code>` / `<entry_id>_dragonfly_<code>` |
 
-Carriers are enabled in **Options -> General and carriers**. Parcels are added by:
+The options dialog is a menu: **General and carriers** (enabled carriers, postal code,
+manual codes, retention, refresh window, language), **DHL account**, **PostNL account**
+and **Amazon orders**. Carriers are enabled in **Options -> General and carriers**.
+Parcels are added by:
 - account sync (DHL, PostNL) - `source: dhl_account` / `postnl_account`
 - Amazon orders (experimental) - `source: amazon`, with `order_id` and `store`
 - the manual codes option or the `track_parcel` action - `source: manual`
@@ -252,6 +261,9 @@ Login methods:
   optional TOTP secret. It stops when Amazon asks for a captcha.
 
 All methods:
+- With the email and password login, the session cookies are kept obfuscated in
+  `.storage/dhl_parcel_nl.<entry_id>_amazon` to limit logins; the other methods keep nothing
+  there.
 - The `amazon-orders` library (5.2.0) is installed only when this source is enabled.
   It needs `beautifulsoup4>=4.14`, while the core `scrape` integration pins 4.13.3; do not
   enable Amazon if you use `scrape`.
@@ -293,7 +305,8 @@ Per parcel sensor (`sensor.dhl_parcel_<tracking>`, `sensor.postnl_parcel_<tracki
 `sensor.dragonfly_parcel_<tracking>`):
 - tracking code / barcode
 - `carrier` (`dhl`, `postnl`, `dragonfly`), `carrier_name`, `source`
-  (`dhl_account`, `postnl_account`, `amazon`, `manual`) and `order_id` (Amazon)
+  (`dhl_account`, `postnl_account`, `amazon`, `manual`), and for Amazon parcels
+  `order_id` and `store` (e.g. `amazon.nl`)
 - status and raw status category
 - sender + shipper name
 - delivery date and timeframe
@@ -307,7 +320,8 @@ Per parcel sensor (`sensor.dhl_parcel_<tracking>`, `sensor.postnl_parcel_<tracki
   PostNL codes use PostNL's own description)
 - `tracking_url` of the carrier's tracking page
 - event history and latest event
-- delivery_location (when available from DHL events)
+- delivery_location (when available: the delivery address or pickup point address; for
+  PostNL the point name and address)
 - `last_updated` - time of the last real change of the parcel data
 
 All `*_hhmm` values and day labels are calculated in the Home Assistant time zone.
@@ -325,6 +339,7 @@ Voice summary sensor provides structured `parcels` list (active parcels only) fo
 - sender
 - status (`status`) and translated labels (`status_en`, `status_pl`, `status_nl`, `status_localized`)
 - time window
+- `carrier` / `carrier_name`
 - tracking code and the real entity_id of the parcel sensor
 
 `sensor.dhl_parcel_voice_summary` includes:
@@ -344,7 +359,8 @@ Delivered parcels are summarized by `sensor.dhl_parcel_delivered_summary`.
 `sensor.dhl_tracking_details` includes a per-tracking matrix for assistants:
 - `dhl_tracking_numbers` (comma-separated `tracking|sender`)
 - `dhl_tracking_numbers_extended` (comma-separated `tracking|sender|status|day|window`)
-- `tracking_details` (list of dicts per tracking code)
+- `tracking_details` (list of dicts per tracking code, with `carrier`, `carrier_name` and
+  the carrier's `tracking_url`)
 - `tracking_by_number` (object keyed by tracking code)
 
 `sensor.dhl_delivered_details` includes a delivered-only matrix:
@@ -402,8 +418,10 @@ Each bus event is mirrored by an event entity (`event.dhl_parcel_netherlands_dhl
 except `dhl_parcel_updated`). The event data is stored in the entity attributes.
 Event names keep the `dhl_` prefix for compatibility but are fired for all carriers;
 every event carries `carrier`. `dhl_parcel_discovered` also carries `source`
-(`account_sync`, `amazon`, `manual`) and `order_id` (Amazon). The device is now
-called "Parcel Tracking NL"; the event entity ids are unchanged.
+(`account_sync`, `amazon`, `manual`) and, for Amazon parcels, `order_id` and `store`.
+`dhl_parcel_removed` carries `reason`: `removed_from_account`,
+`delivered_retention_expired` or `untracked`. The device is now called
+"Parcel Tracking NL"; the event entity ids are unchanged.
 
 Event delivery guarantees:
 - events are fired **after** all sensors have been updated, so automations can read
@@ -437,7 +455,8 @@ Reverse-geocoding for delivery location:
 - result is cached in memory and used to replace raw GPS in summaries/events when possible
 
 Entity cleanup behavior:
-- parcels removed from DHL account are automatically removed from active tracking
+- parcels that disappear from the DHL or PostNL account before delivery are automatically
+  removed from active tracking (`reason: removed_from_account`)
 - delivered parcels remain visible until `delivered_keep_days` expires
 - stale/unavailable parcel entities are removed from registry automatically
 
@@ -531,8 +550,10 @@ Default aliases/legacy files:
 - `automation-examples.yaml` (Polish default)
 - `lovelace-card-example.yaml` (Polish default)
 
-The automation examples include `A1) New parcel from an Amazon.nl order`
+The automation examples include `A1) New parcel from an Amazon order`
 (condition `source == 'amazon'`); all messages name the carrier from the `carrier` field.
+The Lovelace cards show the carrier and link to the carrier's own tracking page
+(`tracking_url`).
 
 ## Notes
 
