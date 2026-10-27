@@ -23,3 +23,8 @@
 - Domain `dhl_parcel_nl`; keep `manifest.json` keys sorted (hassfest) and the version in sync
   with `CHANGELOG.md` and the README update notes.
 - Run `ruff check` / `ruff format` and the Home Assistant test harness before committing.
+
+<!-- entire-agent:begin -->
+Read .entire/agent-guide.md for this repository's workflow, source inspection, and verification guidance.
+@.entire/agent-guide.md
+<!-- entire-agent:end -->
